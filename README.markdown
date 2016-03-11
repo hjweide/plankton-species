@@ -1,8 +1,9 @@
 # Plankton species labeling interface
 
-Disclaimer: this is my first time writing more than a few lines of JavaScript,
-and as such there is probably too much copy-and-pasting and other bad practice
-in this project.  Pull requests (and helpful comments) are welcome.
+Disclaimer: this is my first time writing more than a few lines of JavaScript
+(and for a purpose other than my own amusement), and as such there is probably
+too much copy-and-pasting and other bad practice in this project.  Pull
+requests (and helpful comments) are welcome.
 
 ## Introduction
 This is a small __work-in-progress__ project aimed at helping some ecologist colleagues
