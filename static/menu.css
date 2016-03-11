@@ -1,0 +1,28 @@
+/* http://stackoverflow.com/questions/4495626/making-custom-right-click-context-menus-for-my-web-app */
+
+.custom-menu {
+    display: none;
+    z-index: 1000;
+    height: 500px;
+    position: absolute;
+    overflow-y: scroll;
+    border: 1px solid #CCC;
+    white-space: nowrap;
+    font-family: sans-serif;
+    background: #FFF;
+    color: #333;
+    border-radius: 5px;
+    padding: 0;
+}
+
+/* Each of the items in the list */
+.custom-menu li {
+    padding: 8px 12px;
+    cursor: pointer;
+    list-style-type: none;
+    transition: all .3s ease;
+}
+
+.custom-menu li:hover {
+    background-color: #DEF;
+}

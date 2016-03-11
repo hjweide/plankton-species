@@ -1,0 +1,19 @@
+/* http://stackoverflow.com/questions/17723164/show-an-android-style-toast-notification-using-html-css-javascript */
+
+.toast {
+    width:min-content; /* some species labels are very long */
+    height:20px;
+    height:auto;
+    position:absolute;
+    margin-left:-100px;
+    background-color: #383838;
+    color: #F0F0F0;
+    font-family: Calibri;
+    font-size: 20px;
+    padding:10px;
+    text-align:center;
+    border-radius: 2px;
+    -webkit-box-shadow: 0px 0px 24px -1px rgba(56, 56, 56, 1);
+    -moz-box-shadow: 0px 0px 24px -1px rgba(56, 56, 56, 1);
+    box-shadow: 0px 0px 24px -1px rgba(56, 56, 56, 1);
+}

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel=stylesheet type=text/css href="{{ url_for('static', filename='menu.css') }}">
+<link rel=stylesheet type=text/css href="{{ url_for('static', filename='selectable.css') }}">
+<link rel=stylesheet type=text/css href="{{ url_for('static', filename='toast.css') }}">
+<link rel=stylesheet type=text/css href="{{ url_for('static', filename='overlay.css') }}">
+
+<script src="../static/js/jquery-1.12.1.js"></script>
+<script src="../static/js/jquery-ui-1.11.4.custom/jquery-ui.js"></script>
+<script src="../static/js/jquery.lazyload.js"></script>
+<script src="../static/js/context_menu.js"></script>
+<script src="../static/js/overlay.js"></script>
+
+<script>
+//$(document).ready(function () {
+// var selectable = document.getElementById('selectable');
+// var images = {{ images|safe }};
+// for (i = 0; i < images.length; i++) {
+//   var image = JSON.parse(images[i]);
+//   var elem = document.createElement('img');
+//   //elem.setAttribute("id", "img");
+//   elem.setAttribute("class", "lazy");
+//   elem.setAttribute("data-original", image['src']);
+//   elem.setAttribute("width", image['width']);
+//   elem.setAttribute("height", image['height']);
+//   selectable.appendChild(elem);
+// }
+//});
+$(document).ready(function() {
+    $('img.lazy').lazyload();
+});
+$(document).ready(function() {
+    // set refresh to true if image selection breaks...
+    // eventually we need a better way to handle the selection for 100,000+ images
+    $('#selectable').selectable({autoRefresh: false, filter: 'figure.selectable-figure'});
+});
+</script>
+</head>
+
+{% extends "layout.html" %}
+{% block body %}
+
+<div id="overlay"></div>
+<div id="overlayContent">
+  <img id="overlayImage" src="" alt=""/>
+  <div id="overlay_image_filepath" class="overlay_info"></div>
+  <div id="overlay_image_species" class="overlay_info"></div>
+  <div id="overlay_image_user" class="overlay_info"></div>
+  <div id="overlay_image_dimensions" class="overlay_info"></div>
+</div>
+<div class='toast' style='display:none'></div>
+
+<ul class='custom-menu'>
+  {% for label in labels %}
+  <li id="{{ label.label_id }}" data-action="{{ label.label_name }}">{{ label.label_name }}</li>
+  {% endfor %}
+</ul> 
+
+<ul id="selectable">
+  {% for image in images %}
+  <figure class="selectable-figure">
+    <img id="{{ image.image_id }}" class="lazy" data-original="{{ image.src }}" width="{{ image.width }}" height="{{ image.height }}" />
+    <figcaption>{{ image.species }}</figcaption>
+  </figure>
+  {% endfor %}
+</ul>
+
+{% endblock %}
+</html>

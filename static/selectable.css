@@ -1,0 +1,24 @@
+#selectable .ui-selecting { 
+  /*background: #cee5f5; */
+  border: 4px solid #cee5f5;
+}
+
+#selectable .ui-selected { 
+  /*background: #377ba8; */
+  border: 4px solid #377ba8;
+}
+
+.selectable-figure { 
+  display: inline-block;
+  margin: 10px; 
+  padding: 0.0em; 
+  border: 4px solid transparent; 
+  text-align: center;
+  font-style: italic;
+  /* http://stackoverflow.com/questions/6534473/how-can-i-make-the-width-of-my-figcaption-match-the-width-of-the-img-inside */
+  width: min-content;
+  height: 95px;
+  font-size: small;
+ /* allow wrapping of very long species names that don't contain spaces */
+  word-break: break-all;
+}
