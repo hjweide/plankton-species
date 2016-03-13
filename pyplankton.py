@@ -4,7 +4,7 @@ from flask import request, session, g, redirect, url_for, abort
 from flask import send_from_directory
 from flask import render_template, flash
 
-import Image
+from PIL import Image
 import StringIO
 import json
 

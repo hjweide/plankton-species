@@ -6,10 +6,11 @@
 # and species are generated and inserted into the dummy database
 # along with the dummy image attributes.
 
-import Image
 import numpy as np
 import sqlite3
 import string
+
+from PIL import Image
 
 from contextlib import closing
 from random import choice, randint
@@ -38,7 +39,7 @@ def generate_dummy_db(num_images=1000, num_species=10, num_users=5):
 
     #  to store the dummy images
     if not isdir(DUMMYDIR):
-        print('creating directory %s')
+        print('creating directory %s' % (DUMMYDIR))
         makedirs(DUMMYDIR)
 
     conn = sqlite3.connect(DATABASE)
