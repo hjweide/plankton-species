@@ -22,10 +22,10 @@ $(document).ready(function() {
                   result = JSON.parse(response);
 
                   // populate the overlay image's info
-                  document.getElementById('overlay_image_filepath').innerHTML = 'Filepath: ' + result['image_filepath'];
-                  document.getElementById('overlay_image_species').innerHTML = 'Species: ' + result['species_name'];
-                  document.getElementById('overlay_image_user').innerHTML = 'Added by: ' + result['username'];
-                  document.getElementById('overlay_image_dimensions').innerHTML = 'Dimensions: ' + result['image_height'] + ' x ' + result['image_width'];
+                  $('#overlay_image_filepath').html('Filepath: ' + result['image_filepath']);
+                  $('#overlay_image_species').html('Species: ' + result['species_name']);
+                  $('#overlay_image_user').html('Added by: ' + result['username']);
+                  $('#overlay_image_dimensions').html('Dimensions: ' + result['image_height'] + ' x ' + result['image_width']);
 
                   // configure the html attributes of the overlay image
                   // want the full resolution image now...

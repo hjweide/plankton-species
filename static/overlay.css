@@ -17,7 +17,6 @@
     overflow: hidden;
     z-index: 100;
     text-align: center;
-    Cache-Control: must-revalidate, no-store;
 }
 
 #overlayImage {
