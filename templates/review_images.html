@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel=stylesheet type=text/css href="{{ url_for('static', filename='review.css') }}">
+
+<script src="../static/js/jquery-1.12.1.js"></script>
+<script src="../static/js/jquery-ui-1.11.4.custom/jquery-ui.js"></script>
+
+<script type="text/javascript" src="../static/js/jqplot/jquery.jqplot.js"></script>
+<script type="text/javascript" src="../static/js/jqplot/plugins/jqplot.barRenderer.js"></script>
+<script type="text/javascript" src="../static/js/jqplot/plugins/jqplot.categoryAxisRenderer.js"></script>
+<script type="text/javascript" src="../static/js/jqplot/plugins/jqplot.pointLabels.js"></script>
+<link rel="stylesheet" type="text/css" href="../static/js/jqplot/jquery.jqplot.css" />
+
+<script>
+function start_review(limit) {
+  var plot = $.jqplot('chart', [[null]], {
+        seriesDefaults: {
+            renderer:$.jqplot.BarRenderer,
+            // Show point labels to the right ('e'ast) of each bar.
+            // edgeTolerance of -15 allows labels flow outside the grid
+            // up to 15 pixels.  If they flow out more than that, they 
+            // will be hidden.
+            pointLabels: { show: true, location: 'e', edgeTolerance: -15, formatString: "%.2f" },
+            // Rotate the bar shadow as if bar is lit from top right.
+            // Here's where we tell the chart it is oriented horizontally.
+            rendererOptions: {
+                barDirection: 'horizontal',
+                varyBarColor: false,
+                shadowOffset: 0,
+                barMargin: 1,
+                highlightMouseOver: true,
+                highlightMouseDown: true,
+                highlightColor: '#377ba8',
+            }
+        },
+        seriesColors: ["#cee5f5"],
+        axes: {
+            yaxis: {
+              renderer: $.jqplot.CategoryAxisRenderer,
+            },
+            xaxis: {
+              label: 'Probability',
+              min: 0,
+              max: 1,
+            }
+        }
+    });
+
+   $('#chart').bind('jqplotDataClick',
+       function(ev, seriesIndex, pointIndex, data) {
+         var clicked_species = plot.data[0][pointIndex][1];
+         console.log('clicked on ' + clicked_species);
+         $('#select').val(clicked_species);
+   });
+  var image_index = 0;
+  console.log('start!');
+  // this queries the database and gets annotations/confidences
+  $.ajax({
+    url: '/review',
+    data: jQuery.param({'limit': limit}),
+    type: 'POST',
+    success: function(response) {
+      console.log('success: ' + response);
+      result = JSON.parse(response);
+      img = result[image_index];
+      $('review').show();
+      $('reviewContent').show();
+      $('#select').show();
+      $('#accept').show();
+      $('#next').show();
+      $('#prev').show();
+
+      update_view(img);
+    },
+    error: function(error) {
+      console.log('error ' + error);
+    }
+  });
+
+  $('#accept').click(function() {
+    var species = $('select').val();
+    var img = result[image_index];
+    console.log('annotating image ' + img.image_id + ' with species ' + img.species_name + ' as ' + species);
+    $.ajax({
+      url: '/update',
+      data: jQuery.param({'image_id': img.image_id, 'species_name': species}),
+      type: 'POST',
+      success: function(response) {
+        console.log('success ' + response);
+        $('#review_image_species').html('Species: ' + species);
+      },
+      error: function(error) {
+        console.log('error ' + error);
+      }
+    });
+  });
+
+  $('#next').click(function() {
+    if (image_index < result.length - 1) {
+      var img = result[++image_index];
+      update_view(img);
+    }
+  });
+  $('#prev').click(function() {
+    if (image_index > 0) {
+      var img = result[--image_index];
+      update_view(img);
+    }
+  });
+
+  function update_view(img) {
+    update_image(img);
+    update_plot(img.image_scores.slice(0, 10));
+    update_select(img.image_scores);
+  }
+
+  function update_image(img) {
+    var review = $('#review');
+    var reviewContent = $('#reviewContent');
+    var review_img = $('#reviewImage');
+    
+    $('#review_image_filepath').html('Filepath: ' + img.image_filepath);
+    $('#review_image_species').html('Species: ' + img.species_name);
+    $('#review_image_user').html('Added by: ' + img.user_username);
+    $('#review_image_progress').html('Progress: ' + (image_index + 1) + '/' + result.length);
+    $('#review_image_dimensions').html('Dimensions: ' + img.image_height + ' x ' + img.image_width);
+    review_img.attr('src', img.image_filepath);
+    review_img.attr('width', img.image_width);
+    review_img.attr('height', img.image_height);
+  }
+
+  function update_plot(species_score_tuples) {
+    plot.replot({data: [species_score_tuples.reverse()]});
+  }
+
+  function update_select(species_score_tuples) {
+    var options = $('#select');
+    options.empty();
+    for (i = 0; i < species_score_tuples.length; i++) {
+      var species_score = species_score_tuples[i][0];
+      var species_name = species_score_tuples[i][1];
+      options.append($('<option/>').val(
+        species_name).text(
+          species_name + ' (' + species_score.toFixed(2) + ')'
+        )
+      );
+    }
+  }
+}
+</script>
+<script>
+</script>
+
+<script>
+$(document).ready(function () {
+  $('#begin').click(function() {
+    var limit = $('#input').val();
+    // query the database to see how many images will be in the review queue
+    $.ajax({
+      url: '/prepare',
+      data: jQuery.param({'limit': limit}),
+      type: 'POST',
+      success: function(response) {
+        //console.log('success: ' + response);
+        result = JSON.parse(response);
+        // what if there are fewer images than the limit?
+        var r = confirm('This will send ' + limit + ' of '   + result['count'] + ' images to the learning algorithm for annotation.  This might take a while, are you sure?');
+        if (r) {
+          console.log('launching annotation...');
+          start_review(limit);
+        }
+        else {
+          console.log('cancel annotation');
+        }
+      },
+      error: function(error) {
+        console.log('error: ' + error);
+        var r = confirm('There was an error preparing the selection for review.');
+      }
+    });
+      
+  });
+});
+</script>
+
+</head>
+
+{% extends "layout.html" %}
+{% block body %}
+<!--
+<dl class="dropdown">
+  <span class="filter">Filter by</span>
+  <dt>
+    <a href="#">
+      <span class="hida">0 species selected</span>    
+      <p class="multiSel"></p>  
+    </a>
+  </dt>
+  <dd>
+    <div class="mutliSelect">
+      <ul>
+      {% for spec in species %}
+        <li>
+          <input type="checkbox" value="{{ spec.species_name }}"/>{{ spec.species_name }}</li>
+      {% endfor %}
+      </ul>
+    </div>
+  </dd>
+</dl>
+-->
+
+<section id="filter">
+  <div id="limit">
+    Limit to:
+    <p><input id="input" type="number" value="10"></p>
+  </div>
+  <div id="begin">
+    <button>Begin review!</button>
+  </div>
+</section>
+
+<section id="review">
+  <div id="reviewStats">
+    <select id="select"></select>
+    <button id="accept">Accept</button>
+    <button id="prev">Prev</button>
+    <button id="next">Next</button>
+    <div id="chart"></div>
+  </div>
+  <div id="reviewContent">
+    <div id="review_image_filepath" class="review_info"></div>
+    <div id="review_image_species" class="review_info"></div>
+    <div id="review_image_user" class="review_info"></div>
+    <div id="review_image_dimensions" class="review_info"></div>
+    <div id="review_image_progress" class="review_progress"></div>
+    <img id="reviewImage" src="" alt=""/>
+  </div>
+</section>
+
+
+{% endblock %}
+</html>

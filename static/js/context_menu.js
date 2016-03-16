@@ -37,7 +37,7 @@ $(document).ready(function() {
       }
       var children_string = selected_ids.join(', ');
       $.ajax({
-        url: '/',
+        url: '/label',
         data: jQuery.param({'image_id': children_string, 'species_id': species_id}),
         type: 'POST',
         success: function(response) {

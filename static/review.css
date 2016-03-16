@@ -1,0 +1,67 @@
+section {
+  width: 100%;
+  margin: auto;
+  padding: 5px;
+}
+
+div#filter {
+  position: relative;
+  display: inline-block;
+  top: 0px;
+  left: 0px;
+  float: left;
+}
+div #begin {
+  width: 10%;
+  float: right;
+}
+
+div#reviewStats {
+  width: 50%;
+  float: left;
+}
+
+div #input {
+  width: 50px;
+  float: left;
+}
+
+div#reviewContent {
+  width: 50%;
+}
+
+
+#review {
+  position: relative;
+  top: 0px;
+  left: 0px;
+  display: inline-block;
+}
+
+#reviewStats {
+  display: inline-block;
+  float: left;
+}
+
+#reviewContent {
+  display: inline-block;
+  float: right;
+}
+
+#reviewContent{
+  display: inline-block;
+  position: relative;
+}
+
+.review_info {
+  color: black;
+  text-align: left;
+}
+
+#accept, #next, #prev, #select {
+  display: none;
+}
+
+#chart {
+  margin-left: 25%;
+}
