@@ -49,7 +49,27 @@ def image(filename):
 # entry point when app is started
 @app.route('/', methods=['GET'])
 def home():
-    return render_template('layout.html')
+    cur = g.db.execute(
+        'select species_name, count(image_id) '
+        'from species, image '
+        'where species_id=image_species_id '
+        'group by species_id '
+        'order by count(image_id) desc'
+    )
+    result = cur.fetchall()
+    species_counts = []
+    for (species_name, count_image_id) in result:
+        #species_counts.append({
+        #    'species_name': str(species_name),
+        #    'image_count': count_image_id,
+        #})
+        species_counts.append([
+            str(species_name),
+            count_image_id
+        ])
+
+    return render_template('home.html',
+                           species_counts=species_counts)
 
 
 # when user chooses a new species for a set of images
@@ -246,28 +266,6 @@ def review_annotations():
         })
 
     return json.dumps(values)
-
-
-@app.route('/logout')
-def logout():
-    session.pop('logged_in', None)
-    flash('You were logged out')
-    return redirect(url_for('home'))
-
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    error = None
-    if request.method == 'POST':
-        if request.form['username'] != app.config['USERNAME']:
-            error = 'Invalid username'
-        elif request.form['password'] != app.config['PASSWORD']:
-            error = 'Invalid password'
-        else:
-            session['logged_in'] = True
-            flash('You were logged in')
-            return redirect(url_for('home'))
-    return render_template('login.html', error=error)
 
 
 def connect_db():

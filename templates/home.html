@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<!doctype html>
+
+<link rel=stylesheet type=text/css href="{{ url_for('static', filename='home.css') }}">
+<link rel="stylesheet" type="text/css" href="../static/js/DataTables-1.10.11/media/css/jquery.dataTables.min.css" />
+<script src="../static/js/jquery-1.12.1.js"></script>
+<script src="../static/js/DataTables-1.10.11/media/js/jquery.dataTables.min.js"></script>
+
+<script>
+var species_counts_parse = {{ species_counts|safe }};
+$(document).ready(function() {
+    $('#table').DataTable( {
+        data: species_counts_parse,
+        columns: [
+            { title: "Species" },
+            { title: "Number" },
+        ],
+        bInfo: false,
+        bFilter: false,
+        paging: false,
+        ordering: false,
+    } );
+} );
+</script>
+
+{% extends "layout.html" %}
+{% block body %}
+<table id="table" class="display" width="100%"></table>
+{% endblock %}
+</html>
