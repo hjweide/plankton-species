@@ -65,7 +65,7 @@ def main():
     from os import listdir
     from os.path import join
     data_dir = 'test'
-    all_files = listdir(data_dir)[:128]
+    all_files = listdir(data_dir)
     print('found %d files' % (len(all_files)))
     filenames = [join(data_dir, f) for f in all_files[:128]]
 
@@ -74,8 +74,8 @@ def main():
     model = Model((128, 1, 95, 95), 10)
     print('getting class scores for %d images' % (len(filenames)))
     y_hat = model.get_class_scores_filenames(filenames)
-    print(y_hat)
 
+    print(y_hat)
 
 if __name__ == '__main__':
     main()

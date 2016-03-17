@@ -238,10 +238,9 @@ def post_revisions():
 def review_annotations():
     # TODO: create minibatches and pass to model
     def get_class_scores(filenames, species):
-        y_hat = np.random.lognormal(1., 5.,
-                                    size=((len(filenames), len(species))))
-        y_hat /= y_hat.sum(axis=1).reshape(-1, 1)
-        return y_hat
+        y_hat = app.config['MODEL'].get_class_scores_filenames(filenames)
+        # json fails to serialize np.float32?
+        return y_hat.astype(np.float64)
 
     print('review_annotations')
     limit_string = str(request.form['limit'])
@@ -287,7 +286,8 @@ def review_annotations():
 def before_first_request():
     try:
         from learning import Model
-        app.config['MODEL'] = Model((128, 1, 95, 95), 121)
+        # TODO: set the appropriate batch size
+        app.config['MODEL'] = Model((10, 1, 95, 95), 121)
     except ImportError:
         warnings.warn('Could not import learning library!')
         app.config['MODEL'] = None
