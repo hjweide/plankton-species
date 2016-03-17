@@ -17,13 +17,7 @@ function start_review(limit) {
   var plot = $.jqplot('chart', [[null]], {
         seriesDefaults: {
             renderer:$.jqplot.BarRenderer,
-            // Show point labels to the right ('e'ast) of each bar.
-            // edgeTolerance of -15 allows labels flow outside the grid
-            // up to 15 pixels.  If they flow out more than that, they 
-            // will be hidden.
             pointLabels: { show: true, location: 'e', edgeTolerance: -15, formatString: "%.2f" },
-            // Rotate the bar shadow as if bar is lit from top right.
-            // Here's where we tell the chart it is oriented horizontally.
             rendererOptions: {
                 barDirection: 'horizontal',
                 varyBarColor: false,
