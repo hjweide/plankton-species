@@ -10,22 +10,25 @@
 <script>
 var species_counts_parse = {{ species_counts|safe }};
 $(document).ready(function() {
-    $('#table').DataTable( {
+    $('#table').DataTable({
         data: species_counts_parse,
         columns: [
-            { title: "Species" },
-            { title: "Number" },
+            {title: "Species"},
+            {title: "Number"},
         ],
         bInfo: false,
         bFilter: false,
         paging: false,
         ordering: false,
-    } );
-} );
+    });
+});
 </script>
 
 {% extends "layout.html" %}
 {% block body %}
+<div id="stats">
+Annotated: {{ annotated }} of {{ total }}
+</div>
 <table id="table" class="display" width="100%"></table>
 {% endblock %}
 </html>

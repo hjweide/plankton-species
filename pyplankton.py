@@ -59,16 +59,28 @@ def home():
     result = cur.fetchall()
     species_counts = []
     for (species_name, count_image_id) in result:
-        #species_counts.append({
-        #    'species_name': str(species_name),
-        #    'image_count': count_image_id,
-        #})
+        # DataTable expects a list of lists, not tuples nor dicts
         species_counts.append([
             str(species_name),
             count_image_id
         ])
 
+    cur = g.db.execute(
+        'select count(image_id) '
+        'from image '
+        'where image_species_id is not null'
+    )
+
+    annotated = cur.fetchone()[0]
+    cur = g.db.execute(
+        'select count(image_id) '
+        'from image'
+    )
+    total = cur.fetchone()[0]
+
     return render_template('home.html',
+                           annotated=annotated,
+                           total=total,
                            species_counts=species_counts)
 
 

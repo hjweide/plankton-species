@@ -1,0 +1,9 @@
+table.display {
+  margin: 0;
+}
+
+.dataTables_wrapper {
+  text-align: left; /* left align column headings */
+  height: 85vh; /* should be computed in a better way? */
+  overflow-y: auto;
+}
