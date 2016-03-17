@@ -238,7 +238,10 @@ def post_revisions():
 def review_annotations():
     # TODO: create minibatches and pass to model
     def get_class_scores(filenames, species):
-        y_hat = app.config['MODEL'].get_class_scores_filenames(filenames)
+        if app.config['MODEL'] is not None:
+            y_hat = app.config['MODEL'].get_class_scores_filenames(filenames)
+        else:
+            y_hat = np.ones((len(filenames), len(species))) / len(species)
         # json fails to serialize np.float32?
         return y_hat.astype(np.float64)
 
