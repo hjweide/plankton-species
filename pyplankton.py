@@ -141,10 +141,10 @@ def post_overlay():
 @app.route('/label')
 def label_images():
     cur = g.db.execute(
-        'select image_id, image_filepath, species_name from image, species'
-        ' where image_species_id = species_id'
-        ' order by random()'
-        ' limit 1000'  # TODO: just for testing
+        'select image_id, image_filepath, species_name '
+        'from image, species '
+        'where image_species_id = species_id '
+        'order by random() limit 1000'  # TODO: just for testing
     )
     result = cur.fetchall()
 
@@ -332,6 +332,6 @@ if __name__ == '__main__':
     app.config.from_pyfile(config_file, silent=True)
 
     app.run(
-        host=app.config.get('HOST', 'localhost'),
+        host=app.config.get('HOST', '127.0.0.1'),
         port=app.config.get('POST', 5000)
     )
