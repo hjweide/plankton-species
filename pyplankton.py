@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 import sqlite3
+import warnings
 from flask import Flask, Response
 from flask import request, session, g, redirect, url_for, abort
 from flask import send_from_directory
@@ -9,7 +10,7 @@ from flask import render_template, flash
 from PIL import Image
 import StringIO
 import json
-from os.path import join, dirname, isdir
+from os.path import join, dirname, isdir, isfile
 
 # configuration
 #DATABASE = '/tmp/pyplankton.db'
@@ -208,7 +209,9 @@ def prepare_review():
 
     result = cur.fetchone()[0]
 
-    return json.dumps({'count': result})
+    model_available = app.config['MODEL'] is not None
+
+    return json.dumps({'count': result, 'model_available': model_available})
 
 
 @app.route('/update', methods=['POST'])
@@ -280,6 +283,16 @@ def review_annotations():
     return json.dumps(values)
 
 
+@app.before_first_request
+def before_first_request():
+    try:
+        from learning import Model
+        app.config['MODEL'] = Model((128, 1, 95, 95), 121)
+    except ImportError:
+        warnings.warn('Could not import learning library!')
+        app.config['MODEL'] = None
+
+
 def connect_db():
     return sqlite3.connect(app.config['DATABASE'])
 
@@ -310,6 +323,15 @@ def install_secret_key(app, filename='secret_key'):
 
 
 if __name__ == '__main__':
-    app.debug = True
     install_secret_key(app, filename='secret_key')
-    app.run()
+
+    # first check if we have a custom configuration
+    config_file = join(app.instance_path, 'custom.py')
+    if not isfile(config_file):
+        config_file = join(app.instance_path, 'default.py')
+    app.config.from_pyfile(config_file, silent=True)
+
+    app.run(
+        host=app.config.get('HOST', 'localhost'),
+        port=app.config.get('POST', 5000)
+    )

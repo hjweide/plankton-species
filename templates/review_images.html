@@ -165,7 +165,14 @@ $(document).ready(function () {
         //console.log('success: ' + response);
         result = JSON.parse(response);
         // what if there are fewer images than the limit?
-        var r = confirm('This will send ' + limit + ' of '   + result['count'] + ' images to the learning algorithm for annotation.  This might take a while, are you sure?');
+        console.log('model_available: ' + result['model_available']);
+        var r;
+        if (result['model_available']) {
+          r = confirm('This will send ' + limit + ' of '   + result['count'] + ' images to the learning algorithm for annotation.  This might take a while, are you sure?');
+        }
+        else {
+        r = confirm('The learning library is not available!  You can still do a manual review, but the probabilities will be meaningless.  Continue?');
+        }
         if (r) {
           console.log('launching annotation...');
           start_review(limit);
