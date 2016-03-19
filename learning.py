@@ -15,18 +15,23 @@ from lasagne.layers import DenseLayer
 from lasagne.layers import FeaturePoolLayer
 from lasagne.layers import get_output
 from lasagne.layers import get_all_params
+from lasagne.layers import get_all_param_values
+from lasagne.layers import get_all_layers
 from lasagne.updates import nesterov_momentum
 from lasagne.nonlinearities import softmax
 from lasagne.nonlinearities import LeakyRectify
 from lasagne.init import Orthogonal
 from os.path import join
+from sklearn.cross_validation import StratifiedKFold
+from sklearn.preprocessing import LabelEncoder
+from sklearn.utils import shuffle
 from time import strftime
 from time import time
 
 
 class Model:
-    def __init__(self, input_shape, output_shape):
-        self.weights_file = 'weights.pickle'  # TODO
+    def __init__(self, input_shape, classes, verbose=True):
+        self.verbose = verbose
         self.input_shape = input_shape
 
         conv = {
@@ -49,6 +54,8 @@ class Model:
             'nonlinearity': LeakyRectify(leakiness=1. / 3),
         }
 
+        # TODO: need to move the layer construction, this is unnecessary
+        # if the layers are loaded from disk
         l_in = InputLayer(input_shape, name='in')
 
         l_conv1a = Conv2DLayer(l_in, name='c1a', num_filters=32, **conv)
@@ -80,33 +87,74 @@ class Model:
         l_dropout7 = DropoutLayer(l_maxout6, name='do7', p=0.5)
         l_dense7 = DenseLayer(
             l_dropout7, name='out',
-            num_units=output_shape, nonlinearity=softmax,
+            num_units=len(classes), nonlinearity=softmax,
         )
 
-        self.softmax_layer = l_dense7
+        model_layers = get_all_layers(l_dense7)
+        self.layers = {layer.name: layer for layer in model_layers}
+        self.best_weights = get_all_param_values(self.layers['out'])
+
+        self.encoder = LabelEncoder()
+        self.encoder.fit(classes)
 
         self.x = T.tensor4('x')
         self.y = T.ivector('y')
         self.x_batch = T.tensor4('x_batch')
         self.y_batch = T.ivector('y_batch')
 
+        self.history = {
+            'start_time': '',
+            'num_epochs': 0,
+            'epoch_durations': [-1],
+            'train_losses': [np.inf],
+            'train_accuracies': [0.],
+            'valid_losses': [np.inf],
+            'valid_accuracies': [0.],
+            'best_train_loss_epoch': 0,
+            'best_valid_loss_epoch': 0,
+            'best_train_accuracy_epoch': 0,
+            'best_valid_accuracy_epoch': 0,
+        }
+
+    def save(self, filename):
+        model_dict = {
+            'layers': self.layers,
+            'best_weights': self.best_weights,
+            'train_mean': self.train_mean,
+            'train_std': self.train_std,
+            'encoder': self.encoder,
+            'history': self.history,
+        }
+
+        if self.verbose:
+            print('saving model to %s' % (filename))
+        with open(filename, 'wb') as f:
+            pickle.dump(model_dict, f, pickle.HIGHEST_PROTOCOL)
+
+    def load(self, filename):
+        if self.verbose:
+            print('loading model from %s' % (filename))
+        with open(filename, 'rb') as f:
+            model_dict = pickle.load(f)
+
+        self.layers = model_dict['layers']
+        self.best_weights = model_dict['best_weights']
+        self.train_mean = model_dict['train_mean']
+        self.train_std = model_dict['train_std']
+        self.encoder = model_dict['encoder']
+        self.history = model_dict['history']
+
+        # TODO: do we want to initialize to the old or the best weights?
+        src_params = model_dict['best_weights']
+        dst_params = get_all_params(self.layers['out'])
+        for src, dst in zip(src_params, dst_params):
+            dst.set_value(src)
+
     def initialize_inference(self):
         self.infer_func = self.build_infer_func()
 
-    def initialize_weights(self, weights_file=None):
-        if weights_file is None:
-            weights_file = self.weights_file
-        try:
-            with open(weights_file, 'rb') as f:
-                src_layers = pickle.load(f)
-            dst_layers = get_all_params(self.softmax_layer)
-            for src_layer, dst_layer in zip(src_layers, dst_layers):
-                dst_layer.set_value(src_layer)
-        except IOError:
-            raise IOError('No weights file %s!' % (weights_file))
-
     def build_train_func(self, lr=0.01, mntm=0.9):
-        y_hat = get_output(self.softmax_layer, self.x, deterministic=False)
+        y_hat = get_output(self.layers['out'], self.x, deterministic=False)
         train_loss = T.mean(
             T.nnet.categorical_crossentropy(y_hat, self.y)
         )
@@ -114,7 +162,7 @@ class Model:
             T.eq(y_hat.argmax(axis=1), self.y)
         )
 
-        all_params = get_all_params(self.softmax_layer, trainable=True)
+        all_params = get_all_params(self.layers['out'], trainable=True)
         updates = nesterov_momentum(
             train_loss, all_params, lr, mntm)
 
@@ -130,8 +178,7 @@ class Model:
 
         return train_func
 
-    def initialize_training(self, lr, mntm, batch_size, max_epochs, verbose):
-        self.verbose = verbose
+    def initialize_training(self, lr, mntm, batch_size, max_epochs):
         if self.verbose:
             print('initializing training with:')
             print(' lr = %.2e, mntm=%.2e, batch_size = %d, max_epochs = %d' % (
@@ -151,21 +198,66 @@ class Model:
 
         self.valid_func = self.build_valid_func()
 
-        self.history = {
-            'start_time': '',
-            'num_epochs': 0,
-            'epoch_durations': [-1],
-            'train_losses': [np.inf],
-            'train_accuracies': [0.],
-            'valid_losses': [np.inf],
-            'valid_accuracies': [0.],
-            'best_train_loss_epoch': 0,
-            'best_valid_loss_epoch': 0,
-            'best_train_accuracy_epoch': 0,
-            'best_valid_accuracy_epoch': 0,
-        }
+    def load_image(self, filename):
+        img = Image.open(filename)
+        img = img.resize(
+            (self.input_shape[3], self.input_shape[2]), PIL.Image.ANTIALIAS)
+        img = np.asarray(img, dtype=np.float32)
 
-    def start_training(self, X_train, y_train, X_valid, y_valid):
+        if self.input_shape[1] == 3:
+            img = img.transpose(1, 2, 0)
+
+        return img
+
+    def prepare_data(self, cache_files=None, filenames=None, labels=None):
+        assert cache_files is not None or (filenames is not None and labels is not None), 'need either cache files or filenames and labels'
+
+        # load the image files from disk
+        if filenames is not None and labels is not None:
+            targets = self.encoder.transform(labels)
+
+            filenames, targets = shuffle(filenames, targets, random_state=42)
+
+            skf = StratifiedKFold(targets, n_folds=(1. / 0.2))
+            train_idx, valid_idx = next(iter(skf))
+
+            X_train = np.empty(
+                ((train_idx.shape[0],) + self.input_shape[1:]), dtype=np.float32)
+            y_train = np.empty(
+                train_idx.shape[0], dtype=np.int32)
+            X_valid = np.empty(
+                ((valid_idx.shape[0],) + self.input_shape[1:]), dtype=np.float32)
+            y_valid = np.empty(
+                valid_idx.shape[0], dtype=np.int32)
+
+            for i, idx in enumerate(train_idx):
+                X_train[i] = self.load_image(filenames[idx])
+                y_train[i] = targets[idx]
+
+            for i, idx in enumerate(valid_idx):
+                X_valid[i] = self.load_image(filenames[idx])
+                y_valid[i] = targets[idx]
+
+            # write the numpy arrays to disk as a tuple
+            if cache_files is not None:
+                train_file, valid_file = cache_files
+                with open(train_file, 'wb') as f:
+                    pickle.dump((X_train, y_train), f, pickle.HIGHEST_PROTOCOL)
+                with open(valid_file, 'wb') as f:
+                    pickle.dump((X_valid, y_valid), f, pickle.HIGHEST_PROTOCOL)
+
+        # load the image files directly from disk
+        else:
+            train_file, valid_file = cache_files
+            with open(train_file, 'rb') as f:
+                X_train, y_train = pickle.load(f)
+            with open(valid_file, 'rb') as f:
+                X_valid, y_valid = pickle.load(f)
+
+        return X_train, y_train, X_valid, y_valid
+
+    def start_training(
+            self, X_train, y_train, X_valid, y_valid, filename=None):
         if self.verbose:
             print('Data shapes:')
             print(' X_train.shape = %r, X_valid.shape = %r' % (
@@ -289,6 +381,8 @@ class Model:
                     self.history['best_train_loss_epoch'] = epoch
                 if current_valid_loss < best_valid_loss:
                     self.history['best_valid_loss_epoch'] = epoch
+                    self.best_weights = get_all_param_values(
+                        self.layers['out'])
 
                 if current_train_accuracy > best_train_accuracy:
                     self.history['best_train_accuracy_epoch'] = epoch
@@ -300,6 +394,9 @@ class Model:
         except KeyboardInterrupt:
             print('caught ctrl-c... stopped training.')
             self.print_training_summary()
+            if filename is None:
+                filename = '%s' % (strftime('%Y-%m-%d_%H:%M:%S'))
+            self.save(filename)
 
     def print_epoch_info(self):
         current_epoch = self.history['num_epochs']
@@ -369,7 +466,7 @@ class Model:
         plt.savefig(train_val_log, bbox_inches='tight')
 
     def build_valid_func(self):
-        y_hat = get_output(self.softmax_layer, self.x, deterministic=True)
+        y_hat = get_output(self.layers['out'], self.x, deterministic=True)
         valid_loss = T.mean(
             T.nnet.categorical_crossentropy(y_hat, self.y)
         )
@@ -389,7 +486,7 @@ class Model:
         return valid_func
 
     def build_infer_func(self):
-        y_hat = get_output(self.softmax_layer, self.x, deterministic=True)
+        y_hat = get_output(self.layers['out'], self.x, deterministic=True)
         infer_func = theano.function(
             inputs=[theano.In(self.x_batch)],
             outputs=y_hat,
@@ -400,22 +497,22 @@ class Model:
 
         return infer_func
 
-    def get_class_scores_filenames(self, filenames):
+    def get_class_scores_filenames(self, filenames, species):
         num_samples = len(filenames)
         X = np.empty((num_samples,) + self.input_shape[1:], dtype=np.float32)
-        _, c, h, w = self.input_shape
         for i, fname in enumerate(filenames):
-            img = Image.open(fname)
-            img = np.asarray(
-                img.resize((w, h), PIL.Image.ANTIALIAS), dtype=np.float32)
-            if c == 3:
-                img = img.transpose(1, 2, 0)
-            X[i] = img / 255.
+            X[i] = self.load_image(fname)
 
-        return self.get_class_scores(X)
+        # swap the columns so they match what's expected
+        # TODO: find a better way to do this...
+        fixed_idx = self.encoder.transform(species)
+        return self.get_class_scores(X)[:, fixed_idx]
 
     def get_class_scores(self, X):
-        return self.infer_func(X)
+        X_test = X.astype(np.float32) / 255.
+        X_test -= self.train_mean
+        X_test /= self.train_std
+        return self.infer_func(X_test)
 
 
 def test_initialization():
@@ -451,7 +548,7 @@ def test_training():
 
     print('initializing model')
     model = Model((None, 1, 95, 95), 121)
-    model.initialize_training(0.01, 0.9, 128, 10000, True)
+    model.initialize_training(0.01, 0.9, 128, 10000)
 
     print('starting training')
     model.start_training(X_train, y_train, X_valid, y_valid)

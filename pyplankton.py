@@ -13,8 +13,8 @@ import json
 from os.path import join, dirname, isdir, isfile
 
 # configuration
-#DATABASE = '/tmp/pyplankton.db'
-DATABASE = 'demo.db'
+#DATABASE = 'demo.db'
+DATABASE = 'learning.db'
 USERNAME = 'admin'
 PASSWORD = 'default'
 
@@ -239,7 +239,9 @@ def review_annotations():
     # TODO: create minibatches and pass to model
     def get_class_scores(filenames, species):
         if app.config['MODEL'] is not None:
-            y_hat = app.config['MODEL'].get_class_scores_filenames(filenames)
+            # tell the model in which order the probabilities are expected
+            # TODO: find a better way to do this...
+            y_hat = app.config['MODEL'].get_class_scores_filenames(filenames, species)
         else:
             y_hat = np.ones((len(filenames), len(species))) / len(species)
         # json fails to serialize np.float32?
@@ -289,8 +291,18 @@ def review_annotations():
 def before_first_request():
     try:
         from learning import Model
-        # TODO: set the appropriate batch size
-        app.config['MODEL'] = Model((10, 1, 95, 95), 121)
+        conn = connect_db()
+        cur = conn.cursor()
+        cur.execute('select species_name from species')
+        species = []
+        for (species_name,) in cur.fetchall():
+            species.append(str(species_name))
+
+        cur.close()
+
+        app.config['MODEL'] = Model((None, 1, 95, 95), species)
+        app.config['MODEL'].load(join('models', 'trained.pickle'))
+        app.config['MODEL'].initialize_inference()
     except ImportError:
         warnings.warn('Could not import learning library!')
         app.config['MODEL'] = None
