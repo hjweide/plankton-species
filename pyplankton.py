@@ -12,14 +12,7 @@ import StringIO
 import json
 from os.path import join, dirname, isdir, isfile
 
-# configuration
-#DATABASE = 'demo.db'
-DATABASE = 'learning.db'
-USERNAME = 'admin'
-PASSWORD = 'default'
-
-WIDTH, HEIGHT = 95, 95
-
+# configuration is done in instance/default.py
 app = Flask(__name__)
 app.config.from_object(__name__)
 
@@ -36,7 +29,8 @@ def image(filename):
     try:
         im = Image.open(filename)
         if thumbnail:
-            im.thumbnail((WIDTH, HEIGHT), Image.ANTIALIAS)
+            im.thumbnail(
+                (app.config['WIDTH'], app.config['HEIGHT']), Image.ANTIALIAS)
         io = StringIO.StringIO()
         im.save(io, format='JPEG')
         return Response(io.getvalue(), mimetype='image/jpeg')
@@ -317,8 +311,10 @@ def before_first_request():
 
         cur.close()
 
-        app.config['MODEL'] = Model((None, 1, 95, 95), species)
-        app.config['MODEL'].load(join('models', 'augment.pickle'))
+        channels = app.config['CHANNELS']
+        height, width = app.config['HEIGHT'], app.config['WIDTH']
+        app.config['MODEL'] = Model((None, channels, height, width), species)
+        app.config['MODEL'].load(join('models', app.config['MODELFILE']))
         app.config['MODEL'].initialize_inference()
     except ImportError:
         warnings.warn('Could not import learning library!')
