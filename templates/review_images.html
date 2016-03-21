@@ -121,7 +121,7 @@ function start_review(limit, select_status) {
     $('#review_image_user').html('Added by: ' + img.user_username);
     $('#review_image_progress').html('Progress: ' + (image_index + 1) + '/' + result.length);
     $('#review_image_dimensions').html('Dimensions: ' + img.image_height + ' x ' + img.image_width);
-    review_img.attr('src', img.image_filepath);
+    review_img.attr('src', img.image_filepath + '?thumbnail=False');
     review_img.attr('width', img.image_width);
     review_img.attr('height', img.image_height);
   }
