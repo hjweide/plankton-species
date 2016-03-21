@@ -201,9 +201,12 @@ def review_images():
 def prepare_review():
     print('prepare_review')
     limit_string = str(request.form['limit'])
+    status_string = str(request.form['status'])
+    status_query = 'is null' if status_string == 'Unannotated' else 'is not null'
     cur = g.db.execute(
         'select count(image_id) '
         'from image '
+        'where image_species_id ' + status_query + ' ' +
         'limit ?', (limit_string,)
     )
 
@@ -212,26 +215,6 @@ def prepare_review():
     model_available = app.config['MODEL'] is not None
 
     return json.dumps({'count': result, 'model_available': model_available})
-
-
-@app.route('/update', methods=['POST'])
-def post_revisions():
-    image_id_string = request.form['image_id']
-    species_name_string = request.form['species_name']
-
-    cur = g.db.execute(
-        'update image set image_species_id=('
-        'select species_id from species where species_name=?) '
-        'where image_id=?',
-        (species_name_string, image_id_string)
-    )
-
-    g.db.commit()
-
-    if cur.rowcount == 1:
-        return json.dumps({'status': 'OK'})
-    else:
-        return json.dumps({'status': 'ERROR'})
 
 
 @app.route('/review', methods=['POST'])
@@ -247,16 +230,30 @@ def review_annotations():
         # json fails to serialize np.float32?
         return y_hat.astype(np.float64)
 
-    print('review_annotations')
     limit_string = str(request.form['limit'])
-    cur = g.db.execute(
-        'select image_id, image_filepath, image_height, image_width, '
-        'species_name, user_username '
-        'from image, species, user '
-        'where image_species_id=species_id and '
-        'image_user_id=user_id '
-        'limit ?', (limit_string,)
-    )
+    status_string = str(request.form['status'])
+    print('review_annotations')
+    print(' limit: %s, status: %s' % (limit_string, status_string))
+
+    # TODO: perhaps there is a way to avoid this duplication?
+    if status_string == 'Unannotated':
+        cur = g.db.execute(
+            'select image_id, image_filepath, image_height, image_width, '
+            '"Unannotated", user_username '
+            'from image, user '
+            'where image_species_id is null and '
+            'image_user_id=user_id '
+            'limit ?', (limit_string,)
+        )
+    else:
+        cur = g.db.execute(
+            'select image_id, image_filepath, image_height, image_width, '
+            'species_name, user_username '
+            'from image, species, user '
+            'where image_species_id=species_id and '
+            'image_user_id=user_id '
+            'limit ?', (limit_string,)
+        )
 
     result = cur.fetchall()
 
@@ -285,6 +282,26 @@ def review_annotations():
         })
 
     return json.dumps(values)
+
+
+@app.route('/update', methods=['POST'])
+def post_revisions():
+    image_id_string = request.form['image_id']
+    species_name_string = request.form['species_name']
+
+    cur = g.db.execute(
+        'update image set image_species_id=('
+        'select species_id from species where species_name=?) '
+        'where image_id=?',
+        (species_name_string, image_id_string)
+    )
+
+    g.db.commit()
+
+    if cur.rowcount == 1:
+        return json.dumps({'status': 'OK'})
+    else:
+        return json.dumps({'status': 'ERROR'})
 
 
 @app.before_first_request

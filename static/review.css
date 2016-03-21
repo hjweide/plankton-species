@@ -11,7 +11,14 @@ div#filter {
   left: 0px;
   float: left;
 }
-div #begin {
+div#limit {
+  float: left;
+}
+div#status {
+  padding-left: 10px;
+  float: left;
+}
+div#begin {
   width: 10%;
   float: right;
 }

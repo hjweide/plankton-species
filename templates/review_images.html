@@ -13,7 +13,7 @@
 <link rel="stylesheet" type="text/css" href="../static/js/jqplot/jquery.jqplot.css" />
 
 <script>
-function start_review(limit) {
+function start_review(limit, select_status) {
   var plot = $.jqplot('chart', [[null]], {
         seriesDefaults: {
             renderer:$.jqplot.BarRenderer,
@@ -52,7 +52,7 @@ function start_review(limit) {
   // this queries the database and gets annotations/confidences
   $.ajax({
     url: '/review',
-    data: jQuery.param({'limit': limit}),
+    data: jQuery.param({'limit': limit, 'status': select_status}),
     type: 'POST',
     success: function(response) {
       console.log('success: ' + response);
@@ -73,7 +73,7 @@ function start_review(limit) {
   });
 
   $('#accept').click(function() {
-    var species = $('select').val();
+    var species = $('#select').val();
     var img = result[image_index];
     console.log('annotating image ' + img.image_id + ' with species ' + img.species_name + ' as ' + species);
     $.ajax({
@@ -150,10 +150,11 @@ function start_review(limit) {
 $(document).ready(function () {
   $('#begin').click(function() {
     var limit = $('#input').val();
+    var select_status = $('#status-select').val()
     // query the database to see how many images will be in the review queue
     $.ajax({
       url: '/prepare',
-      data: jQuery.param({'limit': limit}),
+      data: jQuery.param({'limit': limit, 'status': select_status}),
       type: 'POST',
       success: function(response) {
         //console.log('success: ' + response);
@@ -169,7 +170,7 @@ $(document).ready(function () {
         }
         if (r) {
           console.log('launching annotation...');
-          start_review(limit);
+          start_review(limit, select_status);
         }
         else {
           console.log('cancel annotation');
@@ -214,7 +215,18 @@ $(document).ready(function () {
 <section id="filter">
   <div id="limit">
     Limit to:
-    <p><input id="input" type="number" value="10"></p>
+    <p>
+      <input id="input" type="number" value="10"></input>
+    </p>
+  </div>
+  <div id="status">
+    Status:
+    <p>
+      <select id="status-select">
+        <option>Unannotated</option>
+        <option>Annotated</option>
+      </select>
+    </p>
   </div>
   <div id="begin">
     <button>Begin review!</button>
