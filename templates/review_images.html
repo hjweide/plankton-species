@@ -83,6 +83,8 @@ function start_review(limit, select_status) {
       success: function(response) {
         console.log('success ' + response);
         $('#review_image_species').html('Species: ' + species);
+        // so that the new species will show if the user clicks "Prev"
+        img.species_name = species;
       },
       error: function(error) {
         console.log('error ' + error);
