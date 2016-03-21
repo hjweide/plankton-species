@@ -318,7 +318,7 @@ def before_first_request():
         cur.close()
 
         app.config['MODEL'] = Model((None, 1, 95, 95), species)
-        app.config['MODEL'].load(join('models', 'trained.pickle'))
+        app.config['MODEL'].load(join('models', 'augment.pickle'))
         app.config['MODEL'].initialize_inference()
     except ImportError:
         warnings.warn('Could not import learning library!')

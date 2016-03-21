@@ -256,6 +256,18 @@ class Model:
 
         return X_train, y_train, X_valid, y_valid
 
+    def transform(self, X, y):
+        X_copy = X.copy()
+        y_copy = y.copy()
+
+        v_idx = np.random.choice([True, False], replace=True, size=X.shape[0])
+        h_idx = np.random.choice([True, False], replace=True, size=X.shape[0])
+
+        X_copy[v_idx] = X_copy[v_idx, :, ::-1, :]
+        X_copy[h_idx] = X_copy[h_idx, :, :, ::-1]
+
+        return X_copy, y_copy
+
     def start_training(
             self, X_train, y_train, X_valid, y_valid, filename=None):
         if self.verbose:
@@ -321,8 +333,11 @@ class Model:
                     X_train_batch = X_train[train_idx]
                     y_train_batch = y_train[train_idx]
 
+                    X_train_batch_transformed, y_train_batch_transformed =\
+                        self.transform(X_train_batch, y_train_batch)
+
                     batch_train_loss, batch_train_acc = self.train_func(
-                        X_train_batch, y_train_batch)
+                        X_train_batch_transformed, y_train_batch_transformed)
 
                     batch_train_losses.append(batch_train_loss)
                     batch_train_accuracies.append(batch_train_acc)
@@ -460,7 +475,7 @@ class Model:
         ax2.plot(epochs, valid_accuracies[1:], 'g--')
         ax2.set_ylabel('accuracy')
 
-        ax1.legend(('training', 'validation'))
+        ax1.legend(('training', 'validation'), loc='center right')
 
         train_val_log = join('logs', '%s.png' % self.history['start_time'] )
         plt.savefig(train_val_log, bbox_inches='tight')
