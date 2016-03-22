@@ -10,16 +10,35 @@
 <script>
 var species_counts_parse = {{ species_counts|safe }};
 $(document).ready(function() {
-    $('#table').DataTable({
+    var table = $('#table').DataTable({
         data: species_counts_parse,
         columns: [
-            {title: "Species"},
-            {title: "Number"},
+            {title: "Species", data: "species_name"},
+            {
+              title: "Confusable", 
+              data: "confusable",
+              render: function(d, type, row) {
+                if (type === 'display') {
+                  return '<input type="checkbox" class="editor-active">';
+                }
+                return d;
+              },
+              //className: 'dt-body-center'
+            },
+            {title: "Number", data: "count_image_id"},
         ],
+        rowCallback: function (row, d) {
+          $('input.editor-active', row).prop('checked', d.active == 1);
+        },
         bInfo: false,
         bFilter: false,
         paging: false,
         ordering: false,
+    });
+    $('#table input[type="checkbox"]').click(function(e) {
+        var $row = $(this).closest('tr');
+        var d = table.row($row).data()
+        console.log(d['species_name']);
     });
 });
 </script>

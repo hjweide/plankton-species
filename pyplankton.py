@@ -58,11 +58,11 @@ def home():
     result = cur.fetchall()
     species_counts = []
     for (species_name, species_confusable, count_image_id) in result:
-        # DataTable expects a list of lists, not tuples nor dicts
-        species_counts.append([
-            str(species_name),
-            count_image_id
-        ])
+        species_counts.append({
+            'species_name': str(species_name),
+            'confusable': str(species_confusable),
+            'count_image_id': count_image_id,
+        })
 
     cur = g.db.execute(
         'select count(image_id) '
@@ -368,8 +368,9 @@ def post_revisions():
 @app.before_first_request
 def before_first_request():
     try:
-        #from learning_ import Model
-        from learning import Model
+        # TODO: cause the import to fail to accelerate non-learning development
+        from learning_ import Model
+        #from learning import Model
         conn = connect_db()
         cur = conn.cursor()
         cur.execute('select species_name from species')
