@@ -23,9 +23,11 @@ $(document).ready(function() {
 
                   // populate the overlay image's info
                   $('#overlay_image_filepath').html('Filepath: ' + result['image_filepath']);
+                  $('#overlay_image_date_collected').html('Collected on: ' + result['image_date_collected']);
                   $('#overlay_image_species').html('Species: ' + result['species_name']);
-                  $('#overlay_image_user').html('Added by: ' + result['username']);
-                  $('#overlay_image_dimensions').html('Dimensions: ' + result['image_height'] + ' x ' + result['image_width']);
+                  $('#overlay_image_added').html('Added by: ' + result['username_added'] + ' on ' + result['image_date_added']);
+                  $('#overlay_image_annotated').html('Annotated on: ' + result['image_date_annotated'] + ' by ' + result['username_annotated']);
+                  $('#overlay_image_dimensions').html('Height x Width: ' + result['image_height'] + ' x ' + result['image_width']);
 
                   // configure the html attributes of the overlay image
                   // want the full resolution image now...

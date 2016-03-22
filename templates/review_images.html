@@ -82,9 +82,14 @@ function start_review(limit, select_status) {
       type: 'POST',
       success: function(response) {
         console.log('success ' + response);
+        annotation_result = JSON.parse(response);
         $('#review_image_species').html('Species: ' + species);
         // so that the new species will show if the user clicks "Prev"
         img.species_name = species;
+        img.username_annotated = annotation_result['username_annotated'];
+        img.image_date_annotated = annotation_result['image_date_annotated'];
+
+        $('#review_image_annotated').html('Annotated by: ' + img.username_annotated + ' on ' + img.image_date_annotated);
       },
       error: function(error) {
         console.log('error ' + error);
@@ -118,7 +123,9 @@ function start_review(limit, select_status) {
     
     $('#review_image_filepath').html('Filepath: ' + img.image_filepath);
     $('#review_image_species').html('Species: ' + img.species_name);
-    $('#review_image_user').html('Added by: ' + img.user_username);
+    $('#review_image_collected').html('Collected on: ' + img.image_date_collected);
+    $('#review_image_added').html('Added by: ' + img.username_added + ' on ' + img.image_date_added);
+    $('#review_image_annotated').html('Annotated by: ' + img.username_annotated + ' on ' + img.image_date_annotated);
     $('#review_image_progress').html('Progress: ' + (image_index + 1) + '/' + result.length);
     $('#review_image_dimensions').html('Dimensions: ' + img.image_height + ' x ' + img.image_width);
     review_img.attr('src', img.image_filepath + '?thumbnail=False');
@@ -218,7 +225,7 @@ $(document).ready(function () {
   <div id="limit">
     Limit to:
     <p>
-      <input id="input" type="number" value="10"></input>
+      <input id="input" type="number" value="128"></input>
     </p>
   </div>
   <div id="status">
@@ -246,7 +253,9 @@ $(document).ready(function () {
   <div id="reviewContent">
     <div id="review_image_filepath" class="review_info"></div>
     <div id="review_image_species" class="review_info"></div>
-    <div id="review_image_user" class="review_info"></div>
+    <div id="review_image_collected" class="review_info"></div>
+    <div id="review_image_added" class="review_info"></div>
+    <div id="review_image_annotated" class="review_info"></div>
     <div id="review_image_dimensions" class="review_info"></div>
     <div id="review_image_progress" class="review_progress"></div>
     <img id="reviewImage" src="" alt=""/>

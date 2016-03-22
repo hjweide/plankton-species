@@ -10,6 +10,7 @@ from flask import render_template, flash
 from PIL import Image
 import StringIO
 import json
+from time import strftime
 from os.path import join, dirname, isdir, isfile
 
 # configuration is done in instance/default.py
@@ -45,15 +46,18 @@ def image(filename):
 @app.route('/', methods=['GET'])
 def home():
     cur = g.db.execute(
-        'select species_name, count(image_id) '
-        'from species, image '
-        'where species_id=image_species_id '
-        'group by species_id '
-        'order by count(image_id) desc'
+        'select '
+        '  species.species_name, species.species_confusable, '
+        '  count(image.image_id) '
+        'from species '
+        'join image on '
+        '   species.species_id=image.image_species_id '
+        'group by species.species_id '
+        'order by count(image.image_id) desc'
     )
     result = cur.fetchall()
     species_counts = []
-    for (species_name, count_image_id) in result:
+    for (species_name, species_confusable, count_image_id) in result:
         # DataTable expects a list of lists, not tuples nor dicts
         species_counts.append([
             str(species_name),
@@ -108,26 +112,49 @@ def post_overlay():
     #print('POST to overlay_image')
     species_id_string = request.form['image_id'],
     cur = g.db.execute(
-        'select image_id, image_filepath, image_height, image_width,'
-        ' species_name, user_username '
-        'from image, species, user '
-        'where image_id=? and '
-        'image_species_id=species_id and '
-        'image_user_id=user_id',
+        'select'
+        '  image.image_id, image.image_filepath, '
+        '  image.image_date_added, image.image_date_collected, '
+        '  image.image_date_annotated, '
+        '  image.image_height, image.image_width, '
+        '  image_species.species_name, '
+        '  image_user_added.user_username, image_user_annotated.user_username '
+        'from image '
+        'join species as image_species on '
+        '  image.image_species_id=image_species.species_id '
+        'join user as image_user_added on '
+        '  image.image_user_id_added=image_user_added.user_id '
+        'join user as image_user_annotated on '
+        '  image.image_user_id_annotated=image_user_annotated.user_id '
+        'where image.image_id=?',
         species_id_string,
+        #'select image_id, image_filepath, image_height, image_width,'
+        #' species_name, user_username '
+        #'from image, species, user '
+        #'where image_id=? and '
+        #'image_species_id=species_id and '
+        #'image_user_id=user_id',
+        #species_id_string,
     )
 
-    (image_id, image_filepath, image_height,
-        image_width, species_name, user_username) = cur.fetchone()
+    (image_id, image_filepath,
+        image_date_added, image_date_collected, image_date_annotated,
+        image_height, image_width,
+        species_name,
+        user_username_added, user_username_annotated) = cur.fetchone()
 
     return json.dumps({
         'status': 'OK',
         'image_id': image_id,
         'image_filepath': image_filepath,
+        'image_date_added': image_date_added,
+        'image_date_collected': image_date_collected,
+        'image_date_annotated': image_date_annotated,
         'image_width': image_width,
         'image_height': image_height,
         'species_name': species_name,
-        'username': user_username
+        'username_added': user_username_added,
+        'username_annotated': user_username_annotated,
     })
 
 
@@ -232,20 +259,38 @@ def review_annotations():
     # TODO: perhaps there is a way to avoid this duplication?
     if status_string == 'Unannotated':
         cur = g.db.execute(
-            'select image_id, image_filepath, image_height, image_width, '
-            '"Unannotated", user_username '
-            'from image, user '
-            'where image_species_id is null and '
-            'image_user_id=user_id '
+            'select'
+            '  image.image_id, image.image_filepath, '
+            '  image.image_date_added, image.image_date_collected,'
+            '  "None",'
+            '  image.image_height, image_width, '
+            '  "None",'
+            '  image_user_added.user_username,'
+            '  "None" '
+            'from image '
+            'join user as image_user_added on'
+            '  image.image_user_id_added=image_user_added.user_id '
+            'where image.image_species_id is null '
             'limit ?', (limit_string,)
         )
     else:
         cur = g.db.execute(
-            'select image_id, image_filepath, image_height, image_width, '
-            'species_name, user_username '
-            'from image, species, user '
-            'where image_species_id=species_id and '
-            'image_user_id=user_id '
+            'select'
+            '  image.image_id, image.image_filepath, '
+            '  image.image_date_added, image.image_date_collected,'
+            '  image.image_date_annotated,'
+            '  image.image_height, image_width, '
+            '  image_species.species_name,'
+            '  image_user_added.user_username,'
+            '  image_user_annotated.user_username '
+            'from image '
+            'join species as image_species on '
+            '  image.image_species_id=image_species.species_id '
+            'join user as image_user_added on'
+            '  image.image_user_id_added=image_user_added.user_id '
+            'join user as image_user_annotated on'
+            '  image.image_user_id_annotated=image_user_annotated.user_id '
+            'where image.image_species_id is not null '
             'limit ?', (limit_string,)
         )
 
@@ -260,8 +305,11 @@ def review_annotations():
     class_scores = get_class_scores(image_filepaths, species)
 
     values = []
-    for class_score, (image_id, image_filepath, image_height, image_width,
-                      species_name, user_username) in zip(class_scores, result):
+    for class_score, result_tuple in zip(class_scores, result):
+        (image_id, image_filepath,
+            image_date_added, image_date_collected, image_date_annotated,
+            image_height, image_width,
+            species_name, user_added, user_annotated) = result_tuple
         scores_sorted, species_sorted = zip(*sorted(zip(class_score, species)))
         score_tuples = [(sc, sp) for sc, sp in zip(
             scores_sorted, species_sorted)][::-1]
@@ -269,10 +317,14 @@ def review_annotations():
             'image_id': image_id,
             'image_scores': score_tuples,
             'image_filepath': image_filepath,
+            'image_date_added': image_date_added,
+            'image_date_collected': image_date_collected,
+            'image_date_annotated': image_date_annotated,
             'image_height': image_height,
             'image_width': image_width,
             'species_name': species_name,
-            'user_username': user_username,
+            'username_added': user_added,
+            'username_annotated': user_annotated,
         })
 
     return json.dumps(values)
@@ -282,18 +334,33 @@ def review_annotations():
 def post_revisions():
     image_id_string = request.form['image_id']
     species_name_string = request.form['species_name']
+    # TODO: need to get this from the interface
+    username_annotated_string = 'hendrik'
+    image_date_annotated = strftime('%Y-%m-%d %H:%M:%S')
 
+    values = (
+        species_name_string, username_annotated_string,
+        image_date_annotated, image_id_string
+    )
     cur = g.db.execute(
-        'update image set image_species_id=('
-        'select species_id from species where species_name=?) '
-        'where image_id=?',
-        (species_name_string, image_id_string)
+        'update image '
+        'set '
+        'image_species_id=('
+        '  select species_id from species where species_name=?), '
+        'image_user_id_annotated=('
+        '  select user_id from user where user_username=?), '
+        'image_date_annotated=? '
+        'where image_id=?', values
     )
 
     g.db.commit()
 
     if cur.rowcount == 1:
-        return json.dumps({'status': 'OK'})
+        return json.dumps({
+            'status': 'OK',
+            'username_annotated': username_annotated_string,
+            'image_date_annotated': image_date_annotated
+        })
     else:
         return json.dumps({'status': 'ERROR'})
 
@@ -301,6 +368,7 @@ def post_revisions():
 @app.before_first_request
 def before_first_request():
     try:
+        #from learning_ import Model
         from learning import Model
         conn = connect_db()
         cur = conn.cursor()
