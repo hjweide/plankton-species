@@ -11,10 +11,18 @@ div#filter {
   left: 0px;
   float: left;
 }
-div#limit {
+div#status {
   float: left;
 }
-div#status {
+div#source {
+  padding-left: 10px;
+  float: left;
+}
+div#species {
+  padding-left: 10px;
+  float: left;
+}
+div#limit, div#novelty, div#probability {
   padding-left: 10px;
   float: left;
 }

@@ -156,10 +156,25 @@ function start_review(limit, select_status) {
 </script>
 
 <script>
+$(document).ready(function() {
+  $('#status-select').change(function() {
+    var status_select = $(this);
+    var state = status_select.val();
+    if (state == 'Unannotated') {
+      $('#source-select').prop('disabled', true);
+      $('#species-select').prop('disabled', true);
+    }
+    else if (state == 'Annotated') {
+      $('#source-select').prop('disabled', false);
+      $('#species-select').prop('disabled', false);
+    }
+    console.log(state);
+  });
+});
 $(document).ready(function () {
   $('#begin').click(function() {
     var limit = $('#input').val();
-    var select_status = $('#status-select').val()
+    var select_status = $('#status-select').val();
     // query the database to see how many images will be in the review queue
     $.ajax({
       url: '/prepare',
@@ -199,35 +214,7 @@ $(document).ready(function () {
 
 {% extends "layout.html" %}
 {% block body %}
-<!--
-<dl class="dropdown">
-  <span class="filter">Filter by</span>
-  <dt>
-    <a href="#">
-      <span class="hida">0 species selected</span>    
-      <p class="multiSel"></p>  
-    </a>
-  </dt>
-  <dd>
-    <div class="mutliSelect">
-      <ul>
-      {% for spec in species %}
-        <li>
-          <input type="checkbox" value="{{ spec.species_name }}"/>{{ spec.species_name }}</li>
-      {% endfor %}
-      </ul>
-    </div>
-  </dd>
-</dl>
--->
-
 <section id="filter">
-  <div id="limit">
-    Limit to:
-    <p>
-      <input id="input" type="number" value="128"></input>
-    </p>
-  </div>
   <div id="status">
     Status:
     <p>
@@ -235,6 +222,44 @@ $(document).ready(function () {
         <option>Unannotated</option>
         <option>Annotated</option>
       </select>
+    </p>
+  </div>
+  <div id="source">
+    Source:
+    <p>
+      <select id="source-select" disabled="true">
+        <option>Algorithm</option>
+        <option>Human</option>
+      </select>
+    </p>
+  </div>
+  <div id="species">
+    Species to include:
+    <p>
+      <select id="species-select" disabled="true">
+        <option>All</option>
+        {% for sp in species %}
+          <option>{{ sp.species_name }}</option>
+        {% endfor %}
+      </select>
+    </p>
+  </div>
+  <div id="limit">
+    Limit to:
+    <p>
+      <input id="input" type="number" value="128"></input>
+    </p>
+  </div>
+  <div id="probability">
+    Probability:
+    <p>
+      <input id="input" type="number" value="1.00"></input>
+    </p>
+  </div>
+  <div id="novelty">
+    Novelty:
+    <p>
+      <input id="input" type="number" value="0"></input>
     </p>
   </div>
   <div id="begin">
