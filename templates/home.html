@@ -16,7 +16,7 @@ $(document).ready(function() {
             {title: "Species", data: "species_name"},
             {
               title: "Confusable", 
-              data: "confusable",
+              data: "species_confusable",
               render: function(d, type, row) {
                 if (type === 'display') {
                   return '<input type="checkbox" class="editor-active">';
@@ -28,7 +28,7 @@ $(document).ready(function() {
             {title: "Number", data: "count_image_id"},
         ],
         rowCallback: function (row, d) {
-          $('input.editor-active', row).prop('checked', d.active == 1);
+          $('input.editor-active', row).prop('checked', d.species_confusable == 1);
         },
         bInfo: false,
         bFilter: false,
@@ -37,8 +37,24 @@ $(document).ready(function() {
     });
     $('#table input[type="checkbox"]').click(function(e) {
         var $row = $(this).closest('tr');
-        var d = table.row($row).data()
-        console.log(d['species_name']);
+        var row_data = table.row($row).data()
+        // flip the boolean in the table
+        row_data['species_confusable'] = !row_data['species_confusable'];
+        //console.log(row_data);
+        $.ajax({
+          url: '/home/update',
+          data: jQuery.param({
+            'species_name': row_data['species_name'],
+            'species_confusable': row_data['species_confusable'],
+          }),
+          type: 'POST',
+          success: function(response) {
+            console.log('success ' + response);
+          },
+          error: function(error) {
+            console.log('error ' + error);
+          }
+        });
     });
 });
 </script>

@@ -60,7 +60,7 @@ def home():
     for (species_name, species_confusable, count_image_id) in result:
         species_counts.append({
             'species_name': str(species_name),
-            'confusable': str(species_confusable),
+            'species_confusable': species_confusable,
             'count_image_id': count_image_id,
         })
 
@@ -81,6 +81,26 @@ def home():
                            annotated=annotated,
                            total=total,
                            species_counts=species_counts)
+
+
+@app.route('/home/update', methods=['POST'])
+def home_update():
+    species_name_string = request.form['species_name']
+    species_confusable_string = request.form['species_confusable']
+    species_confusable = 1 if species_confusable_string == 'true' else 0
+    g.db.execute(
+        'update'
+        '  species '
+        'set '
+        '  species_confusable=? '
+        'where'
+        '  species_name=?',
+        (species_confusable, species_name_string)
+    )
+
+    g.db.commit()
+
+    return json.dumps({'status': 'OK'})
 
 
 # when user chooses a new species for a set of images
