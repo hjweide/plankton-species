@@ -38,18 +38,18 @@ $(document).ready(function() {
     $('#table input[type="checkbox"]').click(function(e) {
         var $row = $(this).closest('tr');
         var row_data = table.row($row).data()
-        // flip the boolean in the table
-        row_data['species_confusable'] = !row_data['species_confusable'];
         //console.log(row_data);
         $.ajax({
           url: '/home/update',
           data: jQuery.param({
             'species_name': row_data['species_name'],
-            'species_confusable': row_data['species_confusable'],
+            'species_confusable': !row_data['species_confusable'],
           }),
           type: 'POST',
           success: function(response) {
             console.log('success ' + response);
+            // flip the boolean in the table only if the database is updated
+            row_data['species_confusable'] = !row_data['species_confusable'];
           },
           error: function(error) {
             console.log('error ' + error);
