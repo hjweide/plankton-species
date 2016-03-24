@@ -13,7 +13,7 @@
 <link rel="stylesheet" type="text/css" href="../static/js/jqplot/jquery.jqplot.css" />
 
 <script>
-function start_review(limit, select_status) {
+function start_review(limit, select_status, select_source, select_species, input_probability, input_novelty) {
   var plot = $.jqplot('chart', [[null]], {
         seriesDefaults: {
             renderer:$.jqplot.BarRenderer,
@@ -52,11 +52,21 @@ function start_review(limit, select_status) {
   // this queries the database and gets annotations/confidences
   $.ajax({
     url: '/review',
-    data: jQuery.param({'limit': limit, 'status': select_status}),
+    data: jQuery.param({
+      'limit': limit,
+      'status': select_status,
+      'source': select_source,
+      'species': select_species,
+      'probability': input_probability,
+      'novelty': input_novelty,
+    }),
     type: 'POST',
     success: function(response) {
       console.log('success: ' + response);
       result = JSON.parse(response);
+      if (result.length == 0) {
+        alert('No images matching this query.');
+      }
       img = result[image_index];
       $('review').show();
       $('reviewContent').show();
@@ -64,6 +74,7 @@ function start_review(limit, select_status) {
       $('#accept').show();
       $('#next').show();
       $('#prev').show();
+      //$('#chart').show();
 
       update_view(img);
     },
@@ -175,26 +186,37 @@ $(document).ready(function () {
   $('#begin').click(function() {
     var limit = $('#input').val();
     var select_status = $('#status-select').val();
+    var select_source = $('#source-select').val();
+    var select_species = $('#species-select').val();
+    var input_probability = $('#probability').val();
+    var input_novelty = $('#novelty').val();
     // query the database to see how many images will be in the review queue
     $.ajax({
       url: '/prepare',
-      data: jQuery.param({'limit': limit, 'status': select_status}),
+      data: jQuery.param({
+        'status': select_status,
+        'source': select_source,
+        'species': select_species,
+        'probability': input_probability,
+        'novelty': input_novelty,
+      }),
       type: 'POST',
       success: function(response) {
         //console.log('success: ' + response);
         result = JSON.parse(response);
         // what if there are fewer images than the limit?
+        var num_images = Math.min(limit, result['count']);
         console.log('model_available: ' + result['model_available']);
         var r;
         if (result['model_available']) {
-          r = confirm('This will send ' + limit + ' of '   + result['count'] + ' images to the learning algorithm for annotation.  This might take a while, are you sure?');
+          r = confirm('This will send ' + num_images + ' of '   + result['count'] + ' images to the learning algorithm for annotation.  This might take a while, are you sure?');
         }
         else {
-        r = confirm('The learning library is not available!  You can still do a manual review, but the probabilities will be meaningless.  Continue?');
+        r = confirm('The learning library is not available!  You can still do a manual review of the ' + num_images + ' images, but the probabilities will be meaningless.  Continue?');
         }
         if (r) {
           console.log('launching annotation...');
-          start_review(limit, select_status);
+          start_review(limit, select_status, select_source, select_species, input_probability, input_novelty);
         }
         else {
           console.log('cancel annotation');

@@ -241,17 +241,57 @@ def review_images():
 @app.route('/prepare', methods=['POST'])
 def prepare_review():
     print('prepare_review')
-    limit_string = str(request.form['limit'])
     status_string = str(request.form['status'])
-    status_query = 'is null' if status_string == 'Unannotated' else 'is not null'
-    cur = g.db.execute(
-        'select count(image_id) '
-        'from image '
-        'where image_species_id ' + status_query + ' ' +
-        'limit ?', (limit_string,)
-    )
+    source_string = str(request.form['source'])
+    species_string = str(request.form['species'])
+
+    source = 1 if source_string == 'Human' else 0
+
+    print('  status_string = %s' % status_string)
+    print('  source = %d' % source)
+    print('  species_string = %s' % species_string)
+
+    if status_string == 'Unannotated':
+        cur = g.db.execute(
+            'select '
+            '  count(image_id) '
+            'from image '
+            'where'
+            '  image_species_id is null '
+        )
+    elif status_string == 'Annotated':
+        if species_string == 'All':
+            cur = g.db.execute(
+                'select '
+                '  count(image_id) '
+                'from image '
+                'join user as image_user_annotated on'
+                '  image.image_user_id_annotated=image_user_annotated.user_id '
+                'where'
+                '  image_species_id is not null and '
+                '  image_user_annotated.user_human=?',
+                (source,)
+            )
+        else:
+            cur = g.db.execute(
+                'select '
+                '  count(image_id) '
+                'from image '
+                'join user as image_user_annotated on'
+                '  image.image_user_id_annotated=image_user_annotated.user_id '
+                'where'
+                '  image_species_id=('
+                '    select '
+                '      species_id '
+                '    from species '
+                '    where '
+                '      species_name=?) and'
+                '  image_user_annotated.user_human=?',
+                (species_string, source)
+            )
 
     result = cur.fetchone()[0]
+    print('result = %s' % result)
 
     model_available = app.config['MODEL'] is not None
 
@@ -273,10 +313,16 @@ def review_annotations():
 
     limit_string = str(request.form['limit'])
     status_string = str(request.form['status'])
+    source_string = str(request.form['source'])
+    species_string = str(request.form['species'])
+    probability_string = str(request.form['probability'])
+    novelty_string = str(request.form['novelty'])
+
+    source = 1 if source_string == 'Human' else 0
+
     print('review_annotations')
     print(' limit: %s, status: %s' % (limit_string, status_string))
 
-    # TODO: perhaps there is a way to avoid this duplication?
     if status_string == 'Unannotated':
         cur = g.db.execute(
             'select'
@@ -293,26 +339,56 @@ def review_annotations():
             'where image.image_species_id is null '
             'limit ?', (limit_string,)
         )
-    else:
-        cur = g.db.execute(
-            'select'
-            '  image.image_id, image.image_filepath, '
-            '  image.image_date_added, image.image_date_collected,'
-            '  image.image_date_annotated,'
-            '  image.image_height, image_width, '
-            '  image_species.species_name,'
-            '  image_user_added.user_username,'
-            '  image_user_annotated.user_username '
-            'from image '
-            'join species as image_species on '
-            '  image.image_species_id=image_species.species_id '
-            'join user as image_user_added on'
-            '  image.image_user_id_added=image_user_added.user_id '
-            'join user as image_user_annotated on'
-            '  image.image_user_id_annotated=image_user_annotated.user_id '
-            'where image.image_species_id is not null '
-            'limit ?', (limit_string,)
-        )
+    elif status_string == 'Annotated':
+        if species_string == 'All':
+            cur = g.db.execute(
+                'select'
+                '  image.image_id, image.image_filepath, '
+                '  image.image_date_added, image.image_date_collected,'
+                '  image.image_date_annotated,'
+                '  image.image_height, image_width, '
+                '  image_species.species_name,'
+                '  image_user_added.user_username,'
+                '  image_user_annotated.user_username '
+                'from image '
+                'join species as image_species on '
+                '  image.image_species_id=image_species.species_id '
+                'join user as image_user_added on'
+                '  image.image_user_id_added=image_user_added.user_id '
+                'join user as image_user_annotated on'
+                '  image.image_user_id_annotated=image_user_annotated.user_id '
+                'where '
+                '  image.image_species_id is not null and '
+                '  image_user_annotated.user_human=? '
+                'limit ?', (source, limit_string,)
+            )
+        else:
+            cur = g.db.execute(
+                'select'
+                '  image.image_id, image.image_filepath, '
+                '  image.image_date_added, image.image_date_collected,'
+                '  image.image_date_annotated,'
+                '  image.image_height, image_width, '
+                '  image_species.species_name,'
+                '  image_user_added.user_username,'
+                '  image_user_annotated.user_username '
+                'from image '
+                'join species as image_species on '
+                '  image.image_species_id=image_species.species_id '
+                'join user as image_user_added on'
+                '  image.image_user_id_added=image_user_added.user_id '
+                'join user as image_user_annotated on'
+                '  image.image_user_id_annotated=image_user_annotated.user_id '
+                'where '
+                '  image.image_species_id=('
+                '    select '
+                '      species_id '
+                '    from species '
+                '    where '
+                '      species_name=?) and'
+                '  image_user_annotated.user_human=? '
+                'limit ?', (species_string, source, limit_string,)
+            )
 
     result = cur.fetchall()
 
@@ -326,13 +402,17 @@ def review_annotations():
 
     values = []
     for class_score, result_tuple in zip(class_scores, result):
+        # unpack the database query
         (image_id, image_filepath,
             image_date_added, image_date_collected, image_date_annotated,
             image_height, image_width,
             species_name, user_added, user_annotated) = result_tuple
+
+        # sort species names by descending probability
         scores_sorted, species_sorted = zip(*sorted(zip(class_score, species)))
         score_tuples = [(sc, sp) for sc, sp in zip(
             scores_sorted, species_sorted)][::-1]
+
         values.append({
             'image_id': image_id,
             'image_scores': score_tuples,
