@@ -245,7 +245,8 @@ def prepare_review():
     source_string = str(request.form['source'])
     species_string = str(request.form['species'])
 
-    source = 1 if source_string == 'Human' else 0
+    # map to 0 or 1
+    source = ['Algorithm', 'Human'].index(source_string)
 
     print('  status_string = %s' % status_string)
     print('  source = %d' % source)
@@ -318,7 +319,7 @@ def review_annotations():
     probability_string = str(request.form['probability'])
     novelty_string = str(request.form['novelty'])
 
-    source = 1 if source_string == 'Human' else 0
+    source = ['Algorithm', 'Human'].index(source_string)
 
     print('review_annotations')
     print(' limit: %s, status: %s' % (limit_string, status_string))
