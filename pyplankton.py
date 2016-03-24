@@ -301,28 +301,39 @@ def prepare_review():
 
 @app.route('/review', methods=['POST'])
 def review_annotations():
-    # TODO: create minibatches and pass to model
     def get_class_scores(filenames, species):
         if app.config['MODEL'] is not None:
             # tell the model in which order the probabilities are expected
-            # TODO: find a better way to do this...
-            y_hat = app.config['MODEL'].get_class_scores_filenames(filenames, species)
+            species_scores = app.config['MODEL'].get_class_scores_filenames(
+                filenames, species)
+
         else:
-            y_hat = np.ones((len(filenames), len(species))) / len(species)
-        # json fails to serialize np.float32?
-        return y_hat.astype(np.float64)
+            uniform = 1. / len(species)
+            species_scores = []
+            for _ in filenames:
+                species_scores.append({
+                    sp: uniform for sp in species
+                })
+
+        return species_scores
+
+    def get_novelty_scores(filenames, species):
+        # TODO: invent a real way to decide when an image should be reviewed
+        y_hat = np.random.random(len(filenames))
+        return y_hat
 
     limit_string = str(request.form['limit'])
     status_string = str(request.form['status'])
     source_string = str(request.form['source'])
     species_string = str(request.form['species'])
-    probability_string = str(request.form['probability'])
-    novelty_string = str(request.form['novelty'])
+    probability = float(request.form['probability'])
+    novelty = float(request.form['novelty'])
 
     source = ['Algorithm', 'Human'].index(source_string)
 
     print('review_annotations')
     print(' limit: %s, status: %s' % (limit_string, status_string))
+    print(' probability: %.2f, novelty: %.2f' % (probability, novelty))
 
     if status_string == 'Unannotated':
         cur = g.db.execute(
@@ -399,36 +410,72 @@ def review_annotations():
     species = [s[0] for s in cur.fetchall()]
     image_filepaths = [str(x[1]) for x in result]
 
-    class_scores = get_class_scores(image_filepaths, species)
+    # list of dicts: map species name to prob. of that species for this image
+    image_predictions_list = get_class_scores(image_filepaths, species)
+    novelty_scores = get_novelty_scores(image_filepaths, species)
 
-    values = []
-    for class_score, result_tuple in zip(class_scores, result):
+    review_values, annotate_values = [], []
+    for prediction_dict, novelty_score, result_tuple in zip(
+            image_predictions_list, novelty_scores, result):
         # unpack the database query
         (image_id, image_filepath,
             image_date_added, image_date_collected, image_date_annotated,
             image_height, image_width,
             species_name, user_added, user_annotated) = result_tuple
 
+        # key-value correspondence is preserved
+        species_names = prediction_dict.keys()
+        species_probs = prediction_dict.values()
+
         # sort species names by descending probability
-        scores_sorted, species_sorted = zip(*sorted(zip(class_score, species)))
-        score_tuples = [(sc, sp) for sc, sp in zip(
-            scores_sorted, species_sorted)][::-1]
+        species_probs_sorted, species_names_sorted = zip(
+            *(sorted(zip(
+                species_probs, species_names))))
 
-        values.append({
-            'image_id': image_id,
-            'image_scores': score_tuples,
-            'image_filepath': image_filepath,
-            'image_date_added': image_date_added,
-            'image_date_collected': image_date_collected,
-            'image_date_annotated': image_date_annotated,
-            'image_height': image_height,
-            'image_width': image_width,
-            'species_name': species_name,
-            'username_added': user_added,
-            'username_annotated': user_annotated,
-        })
+        # this image can be auto-annotated
+        if species_probs_sorted[-1] > probability and novelty_score < novelty:
+            annotate_values.append((
+                strftime('%Y-%m-%d %H:%M:%S'),
+                species_names_sorted[-1],
+                #app.config['MODELFILE'],
+                'convnet',
+                image_id,
+            ))
+        # this image needs to be sent back for review
+        else:
+            name_prob_tuples = [(name, prob) for name, prob in zip(
+                species_names_sorted, species_probs_sorted)][::-1]
 
-    return json.dumps(values)
+            review_values.append({
+                'image_id': image_id,
+                'image_scores': name_prob_tuples,
+                'image_filepath': image_filepath,
+                'image_date_added': image_date_added,
+                'image_date_collected': image_date_collected,
+                'image_date_annotated': image_date_annotated,
+                'image_height': image_height,
+                'image_width': image_width,
+                'species_name': species_name,
+                'username_added': user_added,
+                'username_annotated': user_annotated,
+            })
+
+    cur = g.db.executemany(
+        'update image '
+        'set '
+        'image_date_annotated=?, '
+        'image_species_id=('
+        '  select species_id from species where species_name=?), '
+        'image_user_id_annotated=('
+        '  select user_id from user where user_username=?) '
+        'where '
+        'image_id=?',
+        annotate_values
+    )
+
+    g.db.commit()
+
+    return json.dumps(review_values)
 
 
 @app.route('/update', methods=['POST'])
@@ -470,8 +517,8 @@ def post_revisions():
 def before_first_request():
     try:
         # TODO: cause the import to fail to accelerate non-learning development
-        from learning_ import Model
-        #from learning import Model
+        #from learning_ import Model
+        from learning import Model
         conn = connect_db()
         cur = conn.cursor()
         cur.execute('select species_name from species')

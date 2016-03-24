@@ -518,10 +518,20 @@ class Model:
         for i, fname in enumerate(filenames):
             X[i] = self.load_image(fname)
 
+        Z = self.get_class_scores(X)
+        species_idx = self.encoder.transform(species)
+
+        species_scores = []
+        for Zi in Z:
+            species_scores.append({
+                species[idx]: Zi[idx].astype(np.float64) for idx in species_idx
+            })
+
         # swap the columns so they match what's expected
         # TODO: find a better way to do this...
-        fixed_idx = self.encoder.transform(species)
-        return self.get_class_scores(X)[:, fixed_idx]
+        #fixed_idx = self.encoder.transform(species)
+        #return self.get_class_scores(X)[:, fixed_idx]
+        return species_scores
 
     def get_class_scores(self, X):
         X_test = X.astype(np.float32) / 255.
@@ -537,8 +547,10 @@ def test_initialization():
     from os.path import join
 
     print('initializing model')
-    model = Model((None, 1, 95, 95), 121)
-    model.initialize_weights(join('models', 'weights_augmentation_maxout.pickle'))
+    species = listdir('train')
+    model = Model((None, 1, 95, 95), species)
+    model.load(
+        join('models', 'augment.pickle'))
 
     data_dir = 'test'
     all_files = listdir(data_dir)
@@ -547,9 +559,13 @@ def test_initialization():
 
     np.set_printoptions(threshold=np.nan)
     print('getting class scores for %d images' % (len(filenames)))
-    y_hat = model.get_class_scores_filenames(filenames)
+    model.initialize_inference()
+    t0 = time()
+    species_scores = model.get_class_scores_filenames(filenames, species)
+    t1 = time()
+    print('time: %.6f' % (t1 - t0))
 
-    #print(y_hat)
+    #print(species_scores)
 
     print('done')
 
@@ -570,5 +586,5 @@ def test_training():
 
 
 if __name__ == '__main__':
-    #test_initialization()
-    test_training()
+    test_initialization()
+    #test_training()

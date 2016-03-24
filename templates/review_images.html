@@ -43,6 +43,7 @@ function start_review(limit, select_status, select_source, select_species, input
 
    $('#chart').bind('jqplotDataClick',
        function(ev, seriesIndex, pointIndex, data) {
+         // in the actual plot the species name is the 1st index
          var clicked_species = plot.data[0][pointIndex][1];
          console.log('clicked on ' + clicked_species);
          $('#select').val(clicked_species);
@@ -64,8 +65,10 @@ function start_review(limit, select_status, select_source, select_species, input
     success: function(response) {
       console.log('success: ' + response);
       result = JSON.parse(response);
+      // implies that all images were annotated automatically
       if (result.length == 0) {
-        alert('No images matching this query.');
+        alert('None of the images require review.');
+        return;
       }
       img = result[image_index];
       $('review').show();
@@ -145,15 +148,24 @@ function start_review(limit, select_status, select_source, select_species, input
   }
 
   function update_plot(species_score_tuples) {
-    plot.replot({data: [species_score_tuples.reverse()]});
+    var new_data = [];
+    // reverse the tuples so that the probability is on the x-axis
+    for (i = 0; i < species_score_tuples.length; i++) {
+      new_data.push([
+        species_score_tuples[i][1],  // name
+        species_score_tuples[i][0]   // prob
+      ]);
+    }
+    //plot.replot({data: [species_score_tuples.reverse()]});
+    plot.replot({data: [new_data.reverse()]});
   }
 
   function update_select(species_score_tuples) {
     var options = $('#select');
     options.empty();
     for (i = 0; i < species_score_tuples.length; i++) {
-      var species_score = species_score_tuples[i][0];
-      var species_name = species_score_tuples[i][1];
+      var species_name = species_score_tuples[i][0];
+      var species_score = species_score_tuples[i][1];
       options.append($('<option/>').val(
         species_name).text(
           species_name + ' (' + species_score.toFixed(2) + ')'
@@ -179,17 +191,17 @@ $(document).ready(function() {
       $('#source-select').prop('disabled', false);
       $('#species-select').prop('disabled', false);
     }
-    console.log(state);
+    //console.log(state);
   });
 });
 $(document).ready(function () {
   $('#begin').click(function() {
-    var limit = $('#input').val();
+    var limit = $('#limit-input').val();
     var select_status = $('#status-select').val();
     var select_source = $('#source-select').val();
     var select_species = $('#species-select').val();
-    var input_probability = $('#probability').val();
-    var input_novelty = $('#novelty').val();
+    var input_probability = $('#probability-input').val();
+    var input_novelty = $('#novelty-input').val();
     // query the database to see how many images will be in the review queue
     $.ajax({
       url: '/prepare',
@@ -204,15 +216,21 @@ $(document).ready(function () {
       success: function(response) {
         //console.log('success: ' + response);
         result = JSON.parse(response);
-        // what if there are fewer images than the limit?
         var num_images = Math.min(limit, result['count']);
+        if (num_images == 0) {
+          alert('The database contains no images matching ' +
+                'status "' + select_status + '", ' +
+                'source "' + select_source + '", and ' +
+                'species "' + select_species + '".');
+          return;
+        }
         console.log('model_available: ' + result['model_available']);
         var r;
         if (result['model_available']) {
           r = confirm('This will send ' + num_images + ' of '   + result['count'] + ' images to the learning algorithm for annotation.  This might take a while, are you sure?');
         }
         else {
-        r = confirm('The learning library is not available!  You can still do a manual review of the ' + num_images + ' images, but the probabilities will be meaningless.  Continue?');
+          r = confirm('The learning library is not available!  You can still do a manual review of the ' + num_images + ' images, but the probabilities will be meaningless.  Continue?');
         }
         if (r) {
           console.log('launching annotation...');
@@ -269,19 +287,19 @@ $(document).ready(function () {
   <div id="limit">
     Limit to:
     <p>
-      <input id="input" type="number" value="128"></input>
+      <input id="limit-input" class="input" type="number" value="128"></input>
     </p>
   </div>
   <div id="probability">
     Probability:
     <p>
-      <input id="input" type="number" value="1.00"></input>
+      <input id="probability-input" class="input" type="number" value="1.00"></input>
     </p>
   </div>
   <div id="novelty">
     Novelty:
     <p>
-      <input id="input" type="number" value="0"></input>
+      <input id="novelty-input" class="input" type="number" value="0"></input>
     </p>
   </div>
   <div id="begin">
