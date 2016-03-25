@@ -240,17 +240,13 @@ def review_images():
 # prepares to query the database for images to be reviewed
 @app.route('/prepare', methods=['POST'])
 def prepare_review():
-    print('prepare_review')
+    #print('prepare_review')
     status_string = str(request.form['status'])
     source_string = str(request.form['source'])
     species_string = str(request.form['species'])
 
     # map to 0 or 1
     source = ['Algorithm', 'Human'].index(source_string)
-
-    print('  status_string = %s' % status_string)
-    print('  source = %d' % source)
-    print('  species_string = %s' % species_string)
 
     if status_string == 'Unannotated':
         cur = g.db.execute(
@@ -292,7 +288,6 @@ def prepare_review():
             )
 
     result = cur.fetchone()[0]
-    print('result = %s' % result)
 
     model_available = app.config['MODEL'] is not None
 
@@ -331,18 +326,15 @@ def review_annotations():
 
     source = ['Algorithm', 'Human'].index(source_string)
 
-    print('review_annotations')
-    print(' limit: %s, status: %s' % (limit_string, status_string))
-    print(' probability: %.2f, novelty: %.2f' % (probability, novelty))
-
     if status_string == 'Unannotated':
         cur = g.db.execute(
             'select'
             '  image.image_id, image.image_filepath, '
             '  image.image_date_added, image.image_date_collected,'
             '  "None",'
-            '  image.image_height, image_width, '
+            '  image.image_height, image_width,'
             '  "None",'
+            '  "N/A",'
             '  image_user_added.user_username,'
             '  "None" '
             'from image '
@@ -360,6 +352,7 @@ def review_annotations():
                 '  image.image_date_annotated,'
                 '  image.image_height, image_width, '
                 '  image_species.species_name,'
+                '  image_species.species_confusable,'
                 '  image_user_added.user_username,'
                 '  image_user_annotated.user_username '
                 'from image '
@@ -382,6 +375,7 @@ def review_annotations():
                 '  image.image_date_annotated,'
                 '  image.image_height, image_width, '
                 '  image_species.species_name,'
+                '  image_species.species_confusable,'
                 '  image_user_added.user_username,'
                 '  image_user_annotated.user_username '
                 'from image '
@@ -421,7 +415,8 @@ def review_annotations():
         (image_id, image_filepath,
             image_date_added, image_date_collected, image_date_annotated,
             image_height, image_width,
-            species_name, user_added, user_annotated) = result_tuple
+            species_name, species_confusable,
+            user_added, user_annotated) = result_tuple
 
         # key-value correspondence is preserved
         species_names = prediction_dict.keys()
@@ -433,7 +428,9 @@ def review_annotations():
                 species_probs, species_names))))
 
         # this image can be auto-annotated
-        if species_probs_sorted[-1] > probability and novelty_score < novelty:
+        if species_probs_sorted[-1] > probability and\
+                novelty_score < novelty:
+
             annotate_values.append((
                 strftime('%Y-%m-%d %H:%M:%S'),
                 species_names_sorted[-1],
@@ -446,6 +443,9 @@ def review_annotations():
             name_prob_tuples = [(name, prob) for name, prob in zip(
                 species_names_sorted, species_probs_sorted)][::-1]
 
+            # convert to string representation of boolean or leave as N/A
+            species_confusable_typed = bool(species_confusable) if isinstance(species_confusable, int) else species_confusable
+
             review_values.append({
                 'image_id': image_id,
                 'image_scores': name_prob_tuples,
@@ -456,6 +456,7 @@ def review_annotations():
                 'image_height': image_height,
                 'image_width': image_width,
                 'species_name': species_name,
+                'species_confusable': species_confusable_typed,
                 'username_added': user_added,
                 'username_annotated': user_annotated,
             })

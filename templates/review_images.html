@@ -137,6 +137,7 @@ function start_review(limit, select_status, select_source, select_species, input
     
     $('#review_image_filepath').html('Filepath: ' + img.image_filepath);
     $('#review_image_species').html('Species: ' + img.species_name);
+    $('#review_image_confusable').html('Confusable: ' + img.species_confusable);
     $('#review_image_collected').html('Collected on: ' + img.image_date_collected);
     $('#review_image_added').html('Added by: ' + img.username_added + ' on ' + img.image_date_added);
     $('#review_image_annotated').html('Annotated by: ' + img.username_annotated + ' on ' + img.image_date_annotated);
@@ -318,6 +319,7 @@ $(document).ready(function () {
   <div id="reviewContent">
     <div id="review_image_filepath" class="review_info"></div>
     <div id="review_image_species" class="review_info"></div>
+    <div id="review_image_confusable" class="review_info"></div>
     <div id="review_image_collected" class="review_info"></div>
     <div id="review_image_added" class="review_info"></div>
     <div id="review_image_annotated" class="review_info"></div>
