@@ -607,6 +607,16 @@ if __name__ == '__main__':
         config_file = join(app.instance_path, 'default.py')
     app.config.from_pyfile(config_file, silent=True)
 
+    import logging
+    file_handler = logging.FileHandler('debug_logs')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s '
+        '[in %(pathname)s:%(lineno)d]'
+    ))
+
+    app.logger.setLevel(logging.INFO)
+    app.logger.addHandler(file_handler)
     app.run(
         host=app.config.get('HOST', '127.0.0.1'),
         port=app.config.get('PORT', 5000)
