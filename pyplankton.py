@@ -600,22 +600,7 @@ def teardown_request(exception):
         db.close()
 
 
-def install_secret_key(app, filename='secret_key'):
-    # adapted from: http://flask.pocoo.org/snippets/104/
-    filename = join(app.instance_path, filename)
-    try:
-        app.config['SECRET_KEY'] = open(filename, 'rb').read()
-    except IOError:
-        print 'Error: No secret key. Create it with:'
-        if not isdir(dirname(filename)):
-            print('mkdir -p %s' % dirname(filename))
-        print('head -c 24 /dev/urandom > %s' % filename)
-        sys.exit(1)
-
-
 if __name__ == '__main__':
-    install_secret_key(app, filename='secret_key')
-
     # first check if we have a custom configuration
     config_file = join(app.instance_path, 'custom.py')
     if not isfile(config_file):
