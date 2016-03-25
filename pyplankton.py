@@ -110,12 +110,12 @@ def home_update():
 # when user chooses a new species for a set of images
 @app.route('/label', methods=['POST'])
 def post_labels():
-    #print('POST to label_images')
     image_id_string = request.form['image_id']
     species_id_string = request.form['species_id']
     image_id_list = image_id_string.split(', ')
 
     values = []
+    # TODO: also need to update the user_id_annotated and timestamp
     for image_id in image_id_list:
         values.append((
             species_id_string,
@@ -127,15 +127,17 @@ def post_labels():
     )
     g.db.commit()
 
-    app.logger.info('post_labels: %d images to species_id %s, rows = %d' % (
-        len(values), species_id_string, cur.rowcount))
+    app.logger.info('post_labels: %d images to species_id %s' % (
+        len(values), species_id_string))
+    info_list = ['  image_id %s set to species_id %s by %s on %s' % (
+        value[1], value[0], 'user', 'time') for value in values]
+    app.logger.info('post_labels:\n%s' % ('\n'.join(info_list)))
     return json.dumps({'status': 'OK', 'rows_updated': cur.rowcount})
 
 
 # called to overlay the native resolution of the selected image
 @app.route('/overlay', methods=['POST'])
 def post_overlay():
-    #print('POST to overlay_image')
     image_id_string = request.form['image_id'],
     cur = g.db.execute(
         'select'
@@ -243,7 +245,6 @@ def review_images():
 # prepares to query the database for images to be reviewed
 @app.route('/prepare', methods=['POST'])
 def prepare_review():
-    #print('prepare_review')
     status_string = str(request.form['status'])
     source_string = str(request.form['source'])
     species_string = str(request.form['species'])
@@ -484,6 +485,10 @@ def review_annotations():
 
     app.logger.info('review_annotations: %d images for review, %d auto-annotated' % (
         len(review_values), len(annotate_values)))
+    # check that the ordering of annot matches the annotate_values above
+    info_list = ['  image_id %d set to species %s by %s on %s' % (
+        annot[3], annot[1], annot[2], annot[0]) for annot in annotate_values]
+    app.logger.info('review_annotations:\n%s' % ('\n'.join(info_list)))
 
     cur = g.db.executemany(
         'update image '
@@ -499,7 +504,8 @@ def review_annotations():
     )
 
     g.db.commit()
-    app.logger.info('review_annotations: updated %d' % (cur.rowcount))
+    app.logger.info('review_annotations: auto-annotated updated %d' % (
+        cur.rowcount))
 
     return json.dumps(review_values)
 
