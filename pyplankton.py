@@ -77,6 +77,8 @@ def home():
     )
     total = cur.fetchone()[0]
 
+    app.logger.info('home: annotated = %d, total = %d, len(counts) = %d' % (
+        annotated, total, len(species_counts)))
     return render_template('home.html',
                            annotated=annotated,
                            total=total,
@@ -88,7 +90,7 @@ def home_update():
     species_name_string = request.form['species_name']
     species_confusable_string = request.form['species_confusable']
     species_confusable = 1 if species_confusable_string == 'true' else 0
-    g.db.execute(
+    cur = g.db.execute(
         'update'
         '  species '
         'set '
@@ -100,6 +102,8 @@ def home_update():
 
     g.db.commit()
 
+    app.logger.info('home: set species %s to confusable = %s, updated = %d' % (
+        species_name_string, species_confusable, cur.rowcount))
     return json.dumps({'status': 'OK'})
 
 
@@ -123,6 +127,8 @@ def post_labels():
     )
     g.db.commit()
 
+    app.logger.info('post_labels: %d images to species_id %s, rows = %d' % (
+        len(values), species_id_string, cur.rowcount))
     return json.dumps({'status': 'OK', 'rows_updated': cur.rowcount})
 
 
@@ -130,7 +136,7 @@ def post_labels():
 @app.route('/overlay', methods=['POST'])
 def post_overlay():
     #print('POST to overlay_image')
-    species_id_string = request.form['image_id'],
+    image_id_string = request.form['image_id'],
     cur = g.db.execute(
         'select'
         '  image.image_id, image.image_filepath, '
@@ -147,14 +153,7 @@ def post_overlay():
         'join user as image_user_annotated on '
         '  image.image_user_id_annotated=image_user_annotated.user_id '
         'where image.image_id=?',
-        species_id_string,
-        #'select image_id, image_filepath, image_height, image_width,'
-        #' species_name, user_username '
-        #'from image, species, user '
-        #'where image_id=? and '
-        #'image_species_id=species_id and '
-        #'image_user_id=user_id',
-        #species_id_string,
+        image_id_string,
     )
 
     (image_id, image_filepath,
@@ -163,6 +162,7 @@ def post_overlay():
         species_name,
         user_username_added, user_username_annotated) = cur.fetchone()
 
+    app.logger.info('post_overlay: image_id = %s' % (image_id_string))
     return json.dumps({
         'status': 'OK',
         'image_id': image_id,
@@ -214,6 +214,8 @@ def label_images():
             'label_name': str(species_name),
         })
 
+    app.logger.info('label_images: return %d images and %d species' % (
+        len(images), len(labels)))
     return render_template('label_images.html',
                            #images=map(json.dumps, images),
                            images=images,
@@ -233,6 +235,7 @@ def review_images():
             'species_name': species_name,
         })
 
+    app.logger.info('review_images: %d species' % (len(species)))
     return render_template('review_images.html',
                            species=species)
 
@@ -291,12 +294,22 @@ def prepare_review():
 
     model_available = app.config['MODEL'] is not None
 
+    if not model_available:
+        app.logger.warning('prepare_review: model_available = %s' % (
+            model_available))
+
+    app.logger.info(
+        'prepare_review:'
+        'status = %s, source = %s, species = %s, model_available = %s' % (
+            status_string, source_string, species_string, model_available))
     return json.dumps({'count': result, 'model_available': model_available})
 
 
 @app.route('/review', methods=['POST'])
 def review_annotations():
     def get_class_scores(filenames, species):
+        app.logger.info('get_class_scores: filenames: %d, species: %d' % (
+            len(filenames), len(species)))
         if app.config['MODEL'] is not None:
             # tell the model in which order the probabilities are expected
             species_scores = app.config['MODEL'].get_class_scores_filenames(
@@ -325,6 +338,12 @@ def review_annotations():
     novelty = float(request.form['novelty'])
 
     source = ['Algorithm', 'Human'].index(source_string)
+
+    app.logger.info('review_annotations:'
+                    ' limit = %s, status = %s, source = %s, species = %s, '
+                    'probability = %.2f, novelty = %.2f' % (
+                        limit_string, status_string, source_string,
+                        species_string, probability, novelty))
 
     if status_string == 'Unannotated':
         cur = g.db.execute(
@@ -403,6 +422,8 @@ def review_annotations():
     )
     species = [s[0] for s in cur.fetchall()]
     image_filepaths = [str(x[1]) for x in result]
+    app.logger.info('review_annotations: filepaths: %d species: %d' % (
+        len(image_filepaths), len(species)))
 
     # list of dicts: map species name to prob. of that species for this image
     image_predictions_list = get_class_scores(image_filepaths, species)
@@ -461,6 +482,9 @@ def review_annotations():
                 'username_annotated': user_annotated,
             })
 
+    app.logger.info('review_annotations: %d images for review, %d auto-annotated' % (
+        len(review_values), len(annotate_values)))
+
     cur = g.db.executemany(
         'update image '
         'set '
@@ -475,6 +499,7 @@ def review_annotations():
     )
 
     g.db.commit()
+    app.logger.info('review_annotations: updated %d' % (cur.rowcount))
 
     return json.dumps(review_values)
 
@@ -504,6 +529,12 @@ def post_revisions():
 
     g.db.commit()
 
+    app.logger.info('post_revisions: '
+                    'image_id %s, species_name %s, username_annotated %s, '
+                    'image_date_annotated %s, updated %s' % (
+                        image_id_string, species_name_string,
+                        username_annotated_string, image_date_annotated,
+                        cur.rowcount))
     if cur.rowcount == 1:
         return json.dumps({
             'status': 'OK',
@@ -531,11 +562,19 @@ def before_first_request():
 
         channels = app.config['CHANNELS']
         height, width = app.config['HEIGHT'], app.config['WIDTH']
-        app.config['MODEL'] = Model((None, channels, height, width), species)
+        batch_size = None
+        app.logger.info('before_first_request: initializing model with '
+                        'input_shape = (%r, %d, %d, %d) and %d species' % (
+                            batch_size, channels, height, width, len(species)))
+        app.config['MODEL'] = Model(
+            (batch_size, channels, height, width), species)
+        app.logger.info('before_first_request: loading model configuration '
+                        'from %s' % (
+                            app.config['MODELFILE']))
         app.config['MODEL'].load(join('models', app.config['MODELFILE']))
         app.config['MODEL'].initialize_inference()
     except ImportError:
-        warnings.warn('Could not import learning library!')
+        app.logger.warn('Could not import learning library!')
         app.config['MODEL'] = None
 
 
