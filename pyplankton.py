@@ -108,29 +108,44 @@ def home_update():
 
 
 # when user chooses a new species for a set of images
-@app.route('/label', methods=['POST'])
+@app.route('/update_labels', methods=['POST'])
 def post_labels():
     image_id_string = request.form['image_id']
     species_id_string = request.form['species_id']
     image_id_list = image_id_string.split(', ')
+
+    # TODO: need to get this from the interface
+    username_annotated_string = 'hendrik'
+    image_date_annotated = strftime('%Y-%m-%d %H:%M:%S')
 
     values = []
     # TODO: also need to update the user_id_annotated and timestamp
     for image_id in image_id_list:
         values.append((
             species_id_string,
+            image_date_annotated,
+            username_annotated_string,
             image_id,
         ))
+
     cur = g.db.executemany(
-        'update image set image_species_id=? where image_id=?;',
+        'update image '
+        'set '
+        '  image_species_id=?, '
+        '  image_date_annotated=?, '
+        '  image_user_id_annotated=('
+        '    select user_id from user where user_username=?) '
+        'where '
+        'image_id=?',
         values
     )
+
     g.db.commit()
 
     app.logger.info('post_labels: %d images to species_id %s' % (
         len(values), species_id_string))
     info_list = ['  image_id %s set to species_id %s by %s on %s' % (
-        value[1], value[0], 'user', 'time') for value in values]
+        value[3], value[0], value[2], value[1]) for value in values]
     app.logger.info('post_labels:\n%s' % ('\n'.join(info_list)))
     return json.dumps({'status': 'OK', 'rows_updated': cur.rowcount})
 
@@ -138,24 +153,26 @@ def post_labels():
 # called to overlay the native resolution of the selected image
 @app.route('/overlay', methods=['POST'])
 def post_overlay():
-    image_id_string = request.form['image_id'],
+    image_id_string = request.form['image_id']
     cur = g.db.execute(
         'select'
         '  image.image_id, image.image_filepath, '
         '  image.image_date_added, image.image_date_collected, '
-        '  image.image_date_annotated, '
+        '  image.image_date_annotated,'
         '  image.image_height, image.image_width, '
-        '  image_species.species_name, '
-        '  image_user_added.user_username, image_user_annotated.user_username '
+        '  image_species.species_name,'
+        '  image_user_added.user_username, '
+        '  image_user_annotated.user_username '
         'from image '
-        'join species as image_species on '
-        '  image.image_species_id=image_species.species_id '
         'join user as image_user_added on '
         '  image.image_user_id_added=image_user_added.user_id '
-        'join user as image_user_annotated on '
+        'left outer join species as image_species on '
+        '  image.image_species_id=image_species.species_id '
+        'left outer join user as image_user_annotated on '
         '  image.image_user_id_annotated=image_user_annotated.user_id '
-        'where image.image_id=?',
-        image_id_string,
+        'where '
+        '  image.image_id=?',
+        (image_id_string,)
     )
 
     (image_id, image_filepath,
@@ -184,21 +201,139 @@ def post_overlay():
 @app.route('/label')
 def label_images():
     cur = g.db.execute(
-        'select image_id, image_filepath, species_name '
-        'from image, species '
-        'where image_species_id = species_id '
-        'order by random() limit 1000'  # TODO: just for testing
+        'select species_id, species_name from species order by species_id'
     )
+    result = cur.fetchall()
+    species = []
+    for (species_id, species_name,) in result:
+        species.append({
+            'species_id': species_id,
+            'species_name': species_name,
+        })
+
+    app.logger.info('label_images: %d species' % (len(species)))
+    return render_template('label_images.html',
+                           species=species)
+
+
+@app.route('/testing', methods=['POST'])
+def test():
+    print('testing!')
+    return json.dumps({'a': 0})
+
+
+@app.route('/label', methods=['POST'])
+def begin_label():
+    limit_string = str(request.form['limit'])
+    status_string = str(request.form['status'])
+    source_string = str(request.form['source'])
+    species_string = str(request.form['species'])
+
+    source = ['Algorithm', 'Human'].index(source_string)
+
+    app.logger.info('begin_label:'
+                    ' limit = %s, status = %s, source = %s, species = %s' % (
+                        limit_string, status_string, source_string,
+                        species_string))
+
+    if status_string == 'Unannotated':
+        cur = g.db.execute(
+            'select'
+            '  image.image_id, image.image_filepath, '
+            '  image.image_date_added, image.image_date_collected,'
+            '  "None",'
+            '  image.image_height, image_width,'
+            '  "None",'
+            '  "N/A",'
+            '  image_user_added.user_username,'
+            '  "None" '
+            'from image '
+            'join user as image_user_added on'
+            '  image.image_user_id_added=image_user_added.user_id '
+            'where image.image_species_id is null '
+            'limit ?', (limit_string,)
+        )
+    elif status_string == 'Annotated':
+        if species_string == 'All':
+            cur = g.db.execute(
+                'select'
+                '  image.image_id, image.image_filepath, '
+                '  image.image_date_added, image.image_date_collected,'
+                '  image.image_date_annotated,'
+                '  image.image_height, image_width, '
+                '  image_species.species_name,'
+                '  image_species.species_confusable,'
+                '  image_user_added.user_username,'
+                '  image_user_annotated.user_username '
+                'from image '
+                'join species as image_species on '
+                '  image.image_species_id=image_species.species_id '
+                'join user as image_user_added on'
+                '  image.image_user_id_added=image_user_added.user_id '
+                'join user as image_user_annotated on'
+                '  image.image_user_id_annotated=image_user_annotated.user_id '
+                'where '
+                '  image.image_species_id is not null and '
+                '  image_user_annotated.user_human=? '
+                'limit ?', (source, limit_string,)
+            )
+        else:
+            cur = g.db.execute(
+                'select'
+                '  image.image_id, image.image_filepath, '
+                '  image.image_date_added, image.image_date_collected,'
+                '  image.image_date_annotated,'
+                '  image.image_height, image_width, '
+                '  image_species.species_name,'
+                '  image_species.species_confusable,'
+                '  image_user_added.user_username,'
+                '  image_user_annotated.user_username '
+                'from image '
+                'join species as image_species on '
+                '  image.image_species_id=image_species.species_id '
+                'join user as image_user_added on'
+                '  image.image_user_id_added=image_user_added.user_id '
+                'join user as image_user_annotated on'
+                '  image.image_user_id_annotated=image_user_annotated.user_id '
+                'where '
+                '  image.image_species_id=('
+                '    select '
+                '      species_id '
+                '    from species '
+                '    where '
+                '      species_name=?) and'
+                '  image_user_annotated.user_human=? '
+                'limit ?', (species_string, source, limit_string,)
+            )
+
     result = cur.fetchall()
 
     images = []
     width, height = 95, 95
-    for (image_id, image_filepath, species_name) in result:
+    for result_tuple in result:
+        (image_id, image_filepath,
+            image_date_added, image_date_collected, image_date_annotated,
+            image_height, image_width,
+            species_name, species_confusable,
+            user_added, user_annotated) = result_tuple
+
+        # convert to string representation of boolean or leave as N/A
+        species_confusable_typed = bool(species_confusable) if isinstance(species_confusable, int) else species_confusable
+
         images.append({
             'image_id': image_id,
+            'image_filepath': image_filepath,
+            'image_date_added': image_date_added,
+            'image_date_collected': image_date_collected,
+            'image_date_annotated': image_date_annotated,
+            'image_height': image_height,
+            'image_width': image_width,
+            'species_name': species_name,
+            'species_confusable': species_confusable_typed,
+            'username_added': user_added,
+            'username_annotated': user_annotated,
             'width': width,
             'height': height,
-            'species': str(species_name),
             'src': image_filepath,
         })
 
@@ -216,12 +351,13 @@ def label_images():
             'label_name': str(species_name),
         })
 
-    app.logger.info('label_images: return %d images and %d species' % (
+    app.logger.info('begin_label: return %d images and %d species' % (
         len(images), len(labels)))
-    return render_template('label_images.html',
+    return json.dumps(images)
+    #return render_template('label_images.html',
                            #images=map(json.dumps, images),
-                           images=images,
-                           labels=labels)
+    #                       images=images,
+    #                       labels=labels)
 
 
 # when user chooses to review species
@@ -307,7 +443,7 @@ def prepare_review():
 
 
 @app.route('/review', methods=['POST'])
-def review_annotations():
+def begin_review():
     def get_class_scores(filenames, species):
         app.logger.info('get_class_scores: filenames: %d, species: %d' % (
             len(filenames), len(species)))
@@ -340,7 +476,7 @@ def review_annotations():
 
     source = ['Algorithm', 'Human'].index(source_string)
 
-    app.logger.info('review_annotations:'
+    app.logger.info('begin_review:'
                     ' limit = %s, status = %s, source = %s, species = %s, '
                     'probability = %.2f, novelty = %.2f' % (
                         limit_string, status_string, source_string,
@@ -423,7 +559,7 @@ def review_annotations():
     )
     species = [s[0] for s in cur.fetchall()]
     image_filepaths = [str(x[1]) for x in result]
-    app.logger.info('review_annotations: filepaths: %d species: %d' % (
+    app.logger.info('begin_review: filepaths: %d species: %d' % (
         len(image_filepaths), len(species)))
 
     # list of dicts: map species name to prob. of that species for this image
@@ -483,12 +619,12 @@ def review_annotations():
                 'username_annotated': user_annotated,
             })
 
-    app.logger.info('review_annotations: %d images for review, %d auto-annotated' % (
+    app.logger.info('begin_review: %d images for review, %d auto-annotated' % (
         len(review_values), len(annotate_values)))
     # check that the ordering of annot matches the annotate_values above
     info_list = ['  image_id %d set to species %s by %s on %s' % (
         annot[3], annot[1], annot[2], annot[0]) for annot in annotate_values]
-    app.logger.info('review_annotations:\n%s' % ('\n'.join(info_list)))
+    app.logger.info('begin_review:\n%s' % ('\n'.join(info_list)))
 
     cur = g.db.executemany(
         'update image '
@@ -504,7 +640,7 @@ def review_annotations():
     )
 
     g.db.commit()
-    app.logger.info('review_annotations: auto-annotated updated %d' % (
+    app.logger.info('begin_review: auto-annotated updated %d' % (
         cur.rowcount))
 
     return json.dumps(review_values)
@@ -514,6 +650,7 @@ def review_annotations():
 def post_revisions():
     image_id_string = request.form['image_id']
     species_name_string = request.form['species_name']
+
     # TODO: need to get this from the interface
     username_annotated_string = 'hendrik'
     image_date_annotated = strftime('%Y-%m-%d %H:%M:%S')
@@ -555,8 +692,8 @@ def post_revisions():
 def before_first_request():
     try:
         # TODO: cause the import to fail to accelerate non-learning development
-        #from learning_ import Model
-        from learning import Model
+        from learning_ import Model
+        #from learning import Model
         conn = connect_db()
         cur = conn.cursor()
         cur.execute('select species_name from species')
