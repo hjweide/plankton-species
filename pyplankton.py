@@ -444,74 +444,45 @@ def begin_review():
                         species_string, probability, novelty))
 
     if status_string == 'Unannotated':
-        cur = g.db.execute(
-            'select'
-            '  image.image_id, image.image_filepath, '
-            '  image.image_date_added, image.image_date_collected,'
-            '  "None",'
-            '  image.image_height, image_width,'
-            '  "None",'
-            '  "N/A",'
-            '  image_user_added.user_username,'
-            '  "None" '
-            'from image '
-            'join user as image_user_added on'
-            '  image.image_user_id_added=image_user_added.user_id '
-            'where image.image_species_id is null '
-            'limit ?', (limit_string,)
-        )
+        where_clause = 'where image.image_species_id is null '
+        values = (limit_string,)
     elif status_string == 'Annotated':
         if species_string == 'All':
-            cur = g.db.execute(
-                'select'
-                '  image.image_id, image.image_filepath, '
-                '  image.image_date_added, image.image_date_collected,'
-                '  image.image_date_annotated,'
-                '  image.image_height, image_width, '
-                '  image_species.species_name,'
-                '  image_species.species_confusable,'
-                '  image_user_added.user_username,'
-                '  image_user_annotated.user_username '
-                'from image '
-                'join species as image_species on '
-                '  image.image_species_id=image_species.species_id '
-                'join user as image_user_added on'
-                '  image.image_user_id_added=image_user_added.user_id '
-                'join user as image_user_annotated on'
-                '  image.image_user_id_annotated=image_user_annotated.user_id '
-                'where '
-                '  image.image_species_id is not null and '
-                '  image_user_annotated.user_human=? '
-                'limit ?', (source, limit_string,)
-            )
+            where_clause = ('where'
+                            '  image.image_species_id is not null and '
+                            '  image_user_annotated.user_human=? ')
+            values = (source, limit_string)
         else:
-            cur = g.db.execute(
-                'select'
-                '  image.image_id, image.image_filepath, '
-                '  image.image_date_added, image.image_date_collected,'
-                '  image.image_date_annotated,'
-                '  image.image_height, image_width, '
-                '  image_species.species_name,'
-                '  image_species.species_confusable,'
-                '  image_user_added.user_username,'
-                '  image_user_annotated.user_username '
-                'from image '
-                'join species as image_species on '
-                '  image.image_species_id=image_species.species_id '
-                'join user as image_user_added on'
-                '  image.image_user_id_added=image_user_added.user_id '
-                'join user as image_user_annotated on'
-                '  image.image_user_id_annotated=image_user_annotated.user_id '
-                'where '
-                '  image.image_species_id=('
-                '    select '
-                '      species_id '
-                '    from species '
-                '    where '
-                '      species_name=?) and'
-                '  image_user_annotated.user_human=? '
-                'limit ?', (species_string, source, limit_string,)
-            )
+            where_clause = ('where'
+                            '  image.image_species_id=('
+                            '    select '
+                            '      species_id '
+                            '    from species '
+                            '    where '
+                            '      species_name=?) and'
+                            '  image_user_annotated.user_human=? ')
+            values = (species_string, source, limit_string)
+
+    cur = g.db.execute(
+        'select'
+        '  image.image_id, image.image_filepath, '
+        '  image.image_date_added, image.image_date_collected, '
+        '  image.image_date_annotated,'
+        '  image.image_height, image.image_width, '
+        '  image_species.species_name,'
+        '  image_species.species_confusable,'
+        '  image_user_added.user_username, '
+        '  image_user_annotated.user_username '
+        'from image '
+        'join user as image_user_added on '
+        '  image.image_user_id_added=image_user_added.user_id '
+        'left outer join species as image_species on '
+        '  image.image_species_id=image_species.species_id '
+        'left outer join user as image_user_annotated on '
+        '  image.image_user_id_annotated=image_user_annotated.user_id '
+        + where_clause +
+        'limit ?', values
+    )
 
     result = cur.fetchall()
 
