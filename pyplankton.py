@@ -119,7 +119,6 @@ def post_labels():
     image_date_annotated = strftime('%Y-%m-%d %H:%M:%S')
 
     values = []
-    # TODO: also need to update the user_id_annotated and timestamp
     for image_id in image_id_list:
         values.append((
             species_id_string,
@@ -216,12 +215,6 @@ def label_images():
                            species=species)
 
 
-@app.route('/testing', methods=['POST'])
-def test():
-    print('testing!')
-    return json.dumps({'a': 0})
-
-
 @app.route('/label', methods=['POST'])
 def begin_label():
     limit_string = str(request.form['limit'])
@@ -300,7 +293,7 @@ def begin_label():
             'image_date_annotated': image_date_annotated,
             'image_height': image_height,
             'image_width': image_width,
-            'species_name': species_name,
+            'species_name': str(species_name),
             'species_confusable': species_confusable_typed,
             'username_added': user_added,
             'username_annotated': user_annotated,
@@ -660,8 +653,8 @@ def post_revisions():
 def before_first_request():
     try:
         # TODO: cause the import to fail to accelerate non-learning development
-        from learning_ import Model
-        #from learning import Model
+        #from learning_ import Model
+        from learning import Model
         conn = connect_db()
         cur = conn.cursor()
         cur.execute('select species_name from species')
