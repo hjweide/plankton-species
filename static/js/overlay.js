@@ -1,7 +1,9 @@
 var DELAY = 700, clicks = 0, timer = null;
 $(document).ready(function() {
   $(function(){
-      $("img.lazy").on("click", function(e){
+    // because the elements are dynamically added:
+    // http://stackoverflow.com/questions/203198/event-binding-on-dynamically-created-elements
+    $('#selectable').on('click', 'img.lazy', function(e) {
           clicks++;  //count clicks
           if(clicks === 1) {
               timer = setTimeout(function() {
@@ -26,14 +28,14 @@ $(document).ready(function() {
                   $('#overlay_image_date_collected').html('Collected on: ' + result['image_date_collected']);
                   $('#overlay_image_species').html('Species: ' + result['species_name']);
                   $('#overlay_image_added').html('Added by: ' + result['username_added'] + ' on ' + result['image_date_added']);
-                  $('#overlay_image_annotated').html('Annotated on: ' + result['image_date_annotated'] + ' by ' + result['username_annotated']);
+                  $('#overlay_image_annotated').html('Annotated by: ' + result['username_annotated'] + ' by ' + result['image_date_annotated']);
                   $('#overlay_image_dimensions').html('Height x Width: ' + result['image_height'] + ' x ' + result['image_width']);
 
                   // configure the html attributes of the overlay image
                   // want the full resolution image now...
-                  img.attr('src', result['image_filepath'] + '?thumbnail=False');
                   img.attr('width', result['image_width']);
                   img.attr('height', result['image_height']);
+                  img.attr('src', result['image_filepath'] + '?thumbnail=False');
                 },
                 error: function(error) {
                   console.log('error: ' + error);
@@ -60,6 +62,8 @@ $(document).ready(function() {
 $(document).ready(function() {
     $('#overlayContent').click(function() {
     $('#overlayImage').attr('src', '');
+    $('#overlayImage').attr('height', '');
+    $('#overlayImage').attr('width', '');
     $('#overlay').hide();
     $('#overlayContent').hide();
   });
