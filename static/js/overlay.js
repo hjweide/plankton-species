@@ -33,9 +33,9 @@ $(document).ready(function() {
 
                   // configure the html attributes of the overlay image
                   // want the full resolution image now...
-                  img.attr('src', result['image_filepath'] + '?thumbnail=False');
                   img.attr('width', result['image_width']);
                   img.attr('height', result['image_height']);
+                  img.attr('src', result['image_filepath'] + '?thumbnail=False');
                 },
                 error: function(error) {
                   console.log('error: ' + error);
@@ -62,6 +62,8 @@ $(document).ready(function() {
 $(document).ready(function() {
     $('#overlayContent').click(function() {
     $('#overlayImage').attr('src', '');
+    $('#overlayImage').attr('height', '');
+    $('#overlayImage').attr('width', '');
     $('#overlay').hide();
     $('#overlayContent').hide();
   });
