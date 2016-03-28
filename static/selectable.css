@@ -58,7 +58,10 @@ div#begin {
   width: 10%;
   float: right;
 }
-
+div .input {
+  width: 50px;
+  float: left;
+}
 #select {
   display: none,
 }
