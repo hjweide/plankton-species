@@ -160,6 +160,7 @@ def post_overlay():
         '  image.image_date_annotated,'
         '  image.image_height, image.image_width, '
         '  image_species.species_name,'
+        '  image_species.species_confusable,'
         '  image_user_added.user_username, '
         '  image_user_annotated.user_username '
         'from image '
@@ -177,9 +178,10 @@ def post_overlay():
     (image_id, image_filepath,
         image_date_added, image_date_collected, image_date_annotated,
         image_height, image_width,
-        species_name,
+        species_name, species_confusable,
         user_username_added, user_username_annotated) = cur.fetchone()
 
+    species_confusable_typed = bool(species_confusable) if isinstance(species_confusable, int) else species_confusable
     app.logger.info('post_overlay: image_id = %s' % (image_id_string))
     return json.dumps({
         'status': 'OK',
@@ -191,6 +193,7 @@ def post_overlay():
         'image_width': image_width,
         'image_height': image_height,
         'species_name': str(species_name),
+        'species_confusable': str(species_confusable_typed),
         'username_added': user_username_added,
         'username_annotated': str(user_username_annotated),
     })
