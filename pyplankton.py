@@ -493,6 +493,12 @@ def begin_review():
         'select species_name from species'
     )
     species = [s[0] for s in cur.fetchall()]
+
+    cur = g.db.execute(
+        'select species_name from species where species_confusable=1'
+    )
+    confusables_species_names = [s for (s,) in cur.fetchall()]
+
     image_filepaths = [str(x[1]) for x in result]
     app.logger.info('begin_review: filepaths: %d species: %d' % (
         len(image_filepaths), len(species)))
@@ -502,6 +508,7 @@ def begin_review():
     novelty_scores = get_novelty_scores(image_filepaths, species)
 
     review_values, annotate_values = [], []
+    auto_annotate_values = []
     for prediction_dict, novelty_score, result_tuple in zip(
             image_predictions_list, novelty_scores, result):
         # unpack the database query
@@ -520,23 +527,36 @@ def begin_review():
             *(sorted(zip(
                 species_probs, species_names))))
 
-        # this image can be auto-annotated
-        if species_probs_sorted[-1] > probability and\
-                novelty_score < novelty:
+        # this image can be auto-annotated if:
+        # 1. the largest softmax output exceeds the given prob.
+        # 2. the novelty score does not exceed the given prob.
+        # 3. the species provided by the model has not been set as confusable
+        target_species_prob = species_probs_sorted[-1]  # max. softmax output
+        target_species_name = species_names_sorted[-1]  # corresponding species
+        target_species_confusable = target_species_name in confusables_species_names
+        if target_species_prob > probability \
+                and novelty_score < novelty \
+                and not target_species_confusable:
 
             annotate_values.append((
                 strftime('%Y-%m-%d %H:%M:%S'),
-                species_names_sorted[-1],
+                target_species_name,
                 #app.config['MODELFILE'],
                 'convnet',
                 image_id,
+            ))
+
+            auto_annotate_values.append((
+                target_species_prob,
+                novelty_score,
+                target_species_confusable,
             ))
         # this image needs to be sent back for review
         else:
             name_prob_tuples = [(name, prob) for name, prob in zip(
                 species_names_sorted, species_probs_sorted)][::-1]
 
-            # convert to string representation of boolean or leave as N/A
+            # convert to string representation of boolean or leave as None
             species_confusable_typed = bool(species_confusable) if isinstance(species_confusable, int) else species_confusable
 
             review_values.append({
@@ -545,21 +565,31 @@ def begin_review():
                 'image_filepath': image_filepath,
                 'image_date_added': image_date_added,
                 'image_date_collected': image_date_collected,
-                'image_date_annotated': image_date_annotated,
+                'image_date_annotated': str(image_date_annotated),
                 'image_height': image_height,
                 'image_width': image_width,
-                'species_name': species_name,
-                'species_confusable': species_confusable_typed,
+                'species_name': str(species_name),
+                'species_confusable': str(species_confusable_typed),
                 'username_added': user_added,
-                'username_annotated': user_annotated,
+                'username_annotated': str(user_annotated),
             })
 
     app.logger.info('begin_review: %d images for review, %d auto-annotated' % (
         len(review_values), len(annotate_values)))
-    # check that the ordering of annot matches the annotate_values above
-    info_list = ['  image_id %d set to species %s by %s on %s' % (
-        annot[3], annot[1], annot[2], annot[0]) for annot in annotate_values]
-    app.logger.info('begin_review:\n%s' % ('\n'.join(info_list)))
+
+    # log info regarding the images that were auto-annotated
+    #app.logger.info('begin_review: min. prob. = %.2f, max. novel. = %.2f, confusable species:\n%s' % (probability, novelty, '\n  '.join(confusables_species_names)))
+    #info_list = []
+    #for annot, auto in zip(annotate_values, auto_annotate_values):
+    #    info_list.append(
+    #        '  image_id %d set to species %s by %s on %s\n' % (
+    #            annot[3], annot[1], annot[2], annot[0]
+    #        ) +
+    #        '    (prob. = %.2f, novel. = %.2f, conf. = %s)' % (
+    #            auto[0], auto[1], auto[2]
+    #        )
+    #    )
+    #app.logger.info('begin_review:\n%s' % ('\n'.join(info_list)))
 
     cur = g.db.executemany(
         'update image '
