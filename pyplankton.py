@@ -203,7 +203,8 @@ def post_overlay():
 @app.route('/label')
 def label_images():
     cur = g.db.execute(
-        'select species_id, species_name from species order by species_id'
+        #'select species_id, species_name from species order by species_id'
+        'select species_id, species_name from species order by species_name'
     )
     result = cur.fetchall()
     species = []
@@ -578,18 +579,18 @@ def begin_review():
         len(review_values), len(annotate_values)))
 
     # log info regarding the images that were auto-annotated
-    #app.logger.info('begin_review: min. prob. = %.2f, max. novel. = %.2f, confusable species:\n%s' % (probability, novelty, '\n  '.join(confusables_species_names)))
-    #info_list = []
-    #for annot, auto in zip(annotate_values, auto_annotate_values):
-    #    info_list.append(
-    #        '  image_id %d set to species %s by %s on %s\n' % (
-    #            annot[3], annot[1], annot[2], annot[0]
-    #        ) +
-    #        '    (prob. = %.2f, novel. = %.2f, conf. = %s)' % (
-    #            auto[0], auto[1], auto[2]
-    #        )
-    #    )
-    #app.logger.info('begin_review:\n%s' % ('\n'.join(info_list)))
+    app.logger.info('begin_review: min. prob. = %.2f, max. novel. = %.2f, confusable species:\n%s' % (probability, novelty, '\n  '.join(confusables_species_names)))
+    info_list = []
+    for annot, auto in zip(annotate_values, auto_annotate_values):
+        info_list.append(
+            '  image_id %d set to species %s by %s on %s\n' % (
+                annot[3], annot[1], annot[2], annot[0]
+            ) +
+            '    (prob. = %.2f, novel. = %.2f, conf. = %s)' % (
+                auto[0], auto[1], auto[2]
+            )
+        )
+    app.logger.info('begin_review:\n%s' % ('\n'.join(info_list)))
 
     cur = g.db.executemany(
         'update image '
