@@ -37,7 +37,7 @@ $(document).ready(function() {
     });
     $('#table input[type="checkbox"]').click(function(e) {
         var $row = $(this).closest('tr');
-        var row_data = table.row($row).data()
+        var row_data = table.row($row).data();
         //console.log(row_data);
         $.ajax({
           url: '/home/update',

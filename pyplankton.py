@@ -203,20 +203,62 @@ def post_overlay():
 @app.route('/label')
 def label_images():
     cur = g.db.execute(
-        #'select species_id, species_name from species order by species_id'
-        'select species_id, species_name from species order by species_name'
+        'select'
+        '  family.family_id, family.family_name, '
+        '  family_genus.genus_id, family_genus.genus_name, '
+        '  genus_species.species_id, genus_species.species_name '
+        'from family '
+        'join genus as family_genus on '
+        '  family.family_id=family_genus.genus_family_id '
+        'join species as genus_species on '
+        '  family_genus.genus_id=genus_species.species_genus_id '
+        'order by family_name'
     )
-    result = cur.fetchall()
-    species = []
-    for (species_id, species_name,) in result:
-        species.append({
-            'species_id': species_id,
-            'species_name': species_name,
-        })
 
-    app.logger.info('label_images: %d species' % (len(species)))
+    result = cur.fetchall()
+    taxonomy_dict = {}
+    for result_tuple in result:
+        (family_id, family_name,
+            genus_id, genus_name,
+            species_id, species_name) = result_tuple
+        if family_id not in taxonomy_dict:
+            taxonomy_dict[family_id] = {
+                'family_id': family_id,
+                'family_name': family_name,
+                'genus_list': {genus_id: {
+                    'genus_id': genus_id,
+                    'genus_name': genus_name,
+                    'species_list': [{
+                        'species_id': species_id,
+                        'species_name': species_name,
+                    }],
+                }},
+            }
+        else:
+            if genus_id not in taxonomy_dict[family_id]['genus_list']:
+                taxonomy_dict[family_id]['genus_list'][genus_id] = {
+                    'genus_id': genus_id,
+                    'genus_name': genus_name,
+                    'species_list': [{
+                        'species_id': species_id,
+                        'species_name': species_name,
+                    }],
+                }
+            else:
+                taxonomy_dict[family_id]['genus_list'][genus_id]['species_list'].append({
+                    'species_id': species_id,
+                    'species_name': species_name,
+                })
+
+    family_list = []
+    for family_id in taxonomy_dict:
+        genus_list = taxonomy_dict[family_id]['genus_list'].values()
+        taxonomy_dict[family_id]['genus_list'] = genus_list
+        family_list.append(taxonomy_dict[family_id])
+
+    #app.logger.info('label_images: %d species' % (len(species)))
     return render_template('label_images.html',
-                           species=species)
+                           families=family_list)
 
 
 @app.route('/label', methods=['POST'])

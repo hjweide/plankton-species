@@ -157,35 +157,24 @@ $(document).ready(function() {
 
 <ul id="menu" class="drop">
   <span>Family</span>
-  {% for sp in species %}
+  {% for family in families %}
       <li> 
-        <a href="#" id="{{ sp.species_id }}" data-action="{{ sp.species_name }}">{{ sp.species_name }}</a>
+        <a href="#" id="{{ family.family_id }}" data-action="{{ family.family_name }}">{{ family.family_name }}</a>
         <ul class="drop">
         <span>Genus</span>
-          <li><a href="#">One</a>
-            <ul class="drop">
-              <span>Species</span>
-              <a href="#">a</a>
-              <a href="#">b</a>
-              <a href="#">c</a>
-            </ul>
+        {% for genus in family.genus_list %}
+          <li>
+            <a href="#" id="{{ genus.genus_id }}" data-action="{{ genus.genus_name }}">{{ genus.genus_name }}</a>
+              <ul class="drop">
+                <span>Species</span>
+                {% for sp in genus.species_list %}
+                <li>
+                  <a href="#" id="{{ sp.species_id }}" data-action="{{ sp.species_name }}">{{ sp.species_name }}</a>
+                </li>
+                {% endfor %}
+              </ul>
           </li>
-          <li><a href="#">Two</a>
-            <ul class="drop">
-              <span>Species</span>
-              <a href="#">e</a>
-              <a href="#">f</a>
-              <a href="#">g</a>
-            </ul>
-          </li>
-          <li><a href="#">Three</a>
-            <ul class="drop">
-              <span>Species</span>
-              <a href="#">h</a>
-              <a href="#">i</a>
-              <a href="#">j</a>
-            </ul>
-          </li>
+        {% endfor %}
         </ul>
       </li>
   {% endfor %}
