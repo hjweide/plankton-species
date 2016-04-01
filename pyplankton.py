@@ -50,7 +50,7 @@ def home():
         '  species.species_name, species.species_confusable, '
         '  count(image.image_id) '
         'from species '
-        'join image on '
+        'left outer join image on '
         '   species.species_id=image.image_species_id '
         'group by species.species_id '
         'order by count(image.image_id) desc'
