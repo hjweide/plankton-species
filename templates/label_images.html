@@ -155,9 +155,39 @@ $(document).ready(function() {
 </div>
 <div class='toast' style='display:none'></div>
 
-<ul class='custom-menu'>
+<ul id="menu" class="drop">
+  <span>Family</span>
   {% for sp in species %}
-  <li id="{{ sp.species_id }}" data-action="{{ sp.species_name }}">{{ sp.species_name }}</li>
+      <li> 
+        <a href="#" id="{{ sp.species_id }}" data-action="{{ sp.species_name }}">{{ sp.species_name }}</a>
+        <ul class="drop">
+        <span>Genus</span>
+          <li><a href="#">One</a>
+            <ul class="drop">
+              <span>Species</span>
+              <a href="#">a</a>
+              <a href="#">b</a>
+              <a href="#">c</a>
+            </ul>
+          </li>
+          <li><a href="#">Two</a>
+            <ul class="drop">
+              <span>Species</span>
+              <a href="#">e</a>
+              <a href="#">f</a>
+              <a href="#">g</a>
+            </ul>
+          </li>
+          <li><a href="#">Three</a>
+            <ul class="drop">
+              <span>Species</span>
+              <a href="#">h</a>
+              <a href="#">i</a>
+              <a href="#">j</a>
+            </ul>
+          </li>
+        </ul>
+      </li>
   {% endfor %}
 </ul> 
 

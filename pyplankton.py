@@ -658,8 +658,8 @@ def post_revisions():
 def before_first_request():
     try:
         # TODO: cause the import to fail to accelerate non-learning development
-        #from learning_ import Model
-        from learning import Model
+        from learning_ import Model
+        #from learning import Model
         conn = connect_db()
         cur = conn.cursor()
         cur.execute('select species_name from species')

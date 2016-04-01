@@ -3,7 +3,7 @@ $(document).bind("contextmenu", function (event) {
     // Avoid the real one
     event.preventDefault();
     // Show contextmenu
-    $(".custom-menu").finish().toggle(100).
+    $("#menu").finish().toggle(100).
     // In the right position (the mouse)
     css({
         top: event.pageY + "px",
@@ -13,14 +13,21 @@ $(document).bind("contextmenu", function (event) {
 // If the document is clicked somewhere
 $(document).bind("mousedown", function (e) {
     // If the clicked element is not the menu
-    if (!$(e.target).parents(".custom-menu").length > 0) {
+    if (!$(e.target).parents("#menu").length > 0) {
         // Hide it
-        $(".custom-menu").hide(100);
+        $("#menu").hide(100);
     }
 });
 $(document).ready(function() {
+  $("ul#menu li").hover(function () {
+    $(this).children('ul').show();
+  }, function() {
+    $(this).children('ul').hide();
+  });
+});
+$(document).ready(function() {
   // If the menu element is clicked
-  $(".custom-menu li").click(function(event){
+  $("#menu li").click(function(event){
       // This is the triggered action name
       var clicked = $(this);
       var species = clicked.text();
@@ -28,7 +35,7 @@ $(document).ready(function() {
       var children = $('#selectable').children('.ui-selected');
 
       // hide it AFTER the action was triggered
-      $(".custom-menu").hide(100);
+      $("#menu").hide(100);
 
       var children_array = jQuery.makeArray(children);
       selected_ids = [];
