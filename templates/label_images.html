@@ -155,21 +155,18 @@ $(document).ready(function() {
 </div>
 <div class='toast' style='display:none'></div>
 
-<ul id="menu" class="drop">
+<ul id="family-menu" class="drop">
   <span>Family</span>
   {% for family in families %}
-      <li> 
-        <a href="#" id="{{ family.family_id }}" data-action="{{ family.family_name }}">{{ family.family_name }}</a>
-        <ul class="drop">
+      <li id="{{ family.family_id }}" data-action="{{ family.family_name }}">{{ family.family_name }}
+        <ul id="genus-menu" class="drop">
         <span>Genus</span>
         {% for genus in family.genus_list %}
-          <li>
-            <a href="#" id="{{ genus.genus_id }}" data-action="{{ genus.genus_name }}">{{ genus.genus_name }}</a>
-              <ul class="drop">
+          <li id="{{ genus.genus_id }}" data-action="{{ genus.genus_name }}">{{ genus.genus_name }}
+              <ul id="species-menu" class="drop">
                 <span>Species</span>
                 {% for sp in genus.species_list %}
-                <li>
-                  <a href="#" id="{{ sp.species_id }}" data-action="{{ sp.species_name }}">{{ sp.species_name }}</a>
+                <li id="{{ sp.species_id }}" data-action="{{ sp.species_name }}">{{ sp.species_name }}
                 </li>
                 {% endfor %}
               </ul>
