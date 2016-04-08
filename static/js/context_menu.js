@@ -26,7 +26,7 @@ $(document).ready(function() {
   });
 });
 $(document).ready(function() {
-  function update_labels(selection) {
+  function update_labels(event, selection) {
     var type = selection['type'];  // indicates whether to change family, genus, or species
     var id = selection['id'];
     var name = selection['name'];
@@ -41,6 +41,7 @@ $(document).ready(function() {
       selected_ids.push(children_array[i].children[0].id);
     }
     var children_string = selected_ids.join(', ');
+    var rows_updated = -1;
     $.ajax({
       url: '/update_labels',
       data: jQuery.param({
@@ -54,26 +55,28 @@ $(document).ready(function() {
         console.log("success " + response);
         // confirm that the number of rows updated in database matches the number of images selected
         var result = JSON.parse(response);
-        var rows_updated = result['rows_updated'];
+        rows_updated = result['rows_updated'];
+        console.log('success: ' + rows_updated);
         if (children.length != rows_updated)
           alert(children.length + ' images were selected, but ' + rows_updated + ' were updated in the database!');
 
         for (i = 0; i < children.length; i++) {
           var child = children[i].children[1];
-          child.innerHTML = species;
+          child.innerHTML = name;
         }
-
-        // ensure the message is on-screen by placing it under the cursor
+        
         var image_str = " image";
         if (rows_updated > 1)
-        image_str += "s";
-        $('.toast').text(rows_updated + image_str + " labeled as " + species).fadeIn(250).delay(500).fadeOut(250).css({
-          top: event.pageY + "px",
-          left: event.pageX + "px",
+          image_str += "s";
+          // ensure the message is on-screen by placing it under the cursor
+          $('.toast').text(rows_updated + image_str + " labeled as " + name).fadeIn(250).delay(500).fadeOut(250).css({
+            top: event.pageY + "px",
+            left: event.pageX + "px",
         });
       },
       error: function(error) {
         console.log("error " + error);
+        rows_updated = -1; 
       }
     });
   }
@@ -86,7 +89,8 @@ $(document).ready(function() {
       var species_name = clicked.attr('data-action');
       console.log("species_id: " + clicked.attr('id') + ", species_name: " + species_name);
       e.stopPropagation();
-      update_labels({'type': 'species', 'id': species_id, 'name': species_name});
+      var rows_updated = update_labels(e, {'type': 'species', 'id': species_id, 'name': species_name});
+      console.log(rows_updated);
     });
     $('#genus-menu > li').on('click', function(e) {
       var clicked = $(this);
@@ -94,7 +98,8 @@ $(document).ready(function() {
       var genus_name = clicked.attr('data-action');
       console.log("genus_id: " + clicked.attr('id') + ", genus_name: " + genus_name);
       e.stopPropagation();
-      update_labels({'type': 'genus', 'id': genus_id, 'name': genus_name});
+      var rows_updated = update_labels(e, {'type': 'genus', 'id': genus_id, 'name': genus_name});
+      console.log(rows_updated);
     });
     $('#family-menu > li').on('click', function(e) {
       var clicked = $(this);
@@ -102,7 +107,8 @@ $(document).ready(function() {
       var family_name = clicked.attr('data-action');
       console.log("family_id: " + clicked.attr('id') + ", family_name: " + family_name);
       e.stopPropagation();
-      update_labels({'type': 'family', 'id': family_id, 'name': family_name});
+      var rows_updated = update_labels(e, {'type': 'family', 'id': family_id, 'name': family_name});
+      console.log(rows_updated);
     });
   });
   //// If the menu element is clicked

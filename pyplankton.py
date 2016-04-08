@@ -121,7 +121,7 @@ def post_labels():
     current_user = 'hendrik'
     cur = g.db.execute(
         'select user_id from user where user_username=?',
-        current_user,
+        (current_user,)
     )
     (current_user_id,) = cur.fetchone()
 
@@ -141,7 +141,7 @@ def post_labels():
         # set the genus
         cur = g.db.execute(
             'select species_genus_id from species where species_id=?',
-            species_id_string,
+            (species_id_string,),
         )
         (genus_id_string,) = cur.fetchone()
         image_date_genus_annotated = current_time
@@ -149,7 +149,7 @@ def post_labels():
         # set the family
         cur = g.db.execute(
             'select genus_family_id from genus where genus_id=?',
-            genus_id_string,
+            (genus_id_string,)
         )
         (family_id_string,) = cur.fetchone()
         image_date_family_annotated = current_time
@@ -162,7 +162,7 @@ def post_labels():
         # set the family
         cur = g.db.execute(
             'select genus_family_id from genus where genus_id=?',
-            genus_id_string,
+            (genus_id_string,)
         )
         (family_id_string,) = cur.fetchone()
         image_date_family_annotated = current_time
@@ -201,7 +201,7 @@ def post_labels():
         '  image_date_species_annotated=?,'
         '  image_user_id_family_annotated=?,'
         '  image_user_id_genus_annotated=?,'
-        '  image_user_id_species_annotated=?,'
+        '  image_user_id_species_annotated=? '
         'where '
         'image_id=?',
         values,
@@ -225,30 +225,56 @@ def post_overlay():
         'select'
         '  image.image_id, image.image_filepath, '
         '  image.image_date_added, image.image_date_collected, '
-        '  image.image_date_annotated,'
+        '  image.image_date_family_annotated,'
+        '  image.image_date_genus_annotated,'
+        '  image.image_date_species_annotated,'
         '  image.image_height, image.image_width, '
+        '  image_family.family_name,'
+        '  image_family.family_confusable,'
+        '  image_genus.genus_name,'
+        '  image_genus.genus_confusable,'
         '  image_species.species_name,'
         '  image_species.species_confusable,'
         '  image_user_added.user_username, '
-        '  image_user_annotated.user_username '
+        '  image_user_family_annotated.user_username,'
+        '  image_user_genus_annotated.user_username,'
+        '  image_user_species_annotated.user_username '
         'from image '
         'join user as image_user_added on '
         '  image.image_user_id_added=image_user_added.user_id '
+        'left outer join family as image_family on '
+        '  image.image_family_id=image_family.family_id '
+        'left outer join genus as image_genus on '
+        '  image.image_genus_id=image_genus.genus_id '
         'left outer join species as image_species on '
         '  image.image_species_id=image_species.species_id '
-        'left outer join user as image_user_annotated on '
-        '  image.image_user_id_annotated=image_user_annotated.user_id '
+        'left outer join user as image_user_family_annotated on '
+        '  image.image_user_id_family_annotated=image_user_family_annotated.user_id '
+        'left outer join user as image_user_genus_annotated on '
+        '  image.image_user_id_genus_annotated=image_user_genus_annotated.user_id '
+        'left outer join user as image_user_species_annotated on '
+        '  image.image_user_id_species_annotated=image_user_species_annotated.user_id '
         'where '
         '  image.image_id=?',
         (image_id_string,)
     )
 
     (image_id, image_filepath,
-        image_date_added, image_date_collected, image_date_annotated,
+        image_date_added, image_date_collected,
+        image_date_family_annotated,
+        image_date_genus_annotated,
+        image_date_species_annotated,
         image_height, image_width,
+        family_name, family_confusable,
+        genus_name, genus_confusable,
         species_name, species_confusable,
-        user_username_added, user_username_annotated) = cur.fetchone()
+        user_username_added,
+        user_username_family_annotated,
+        user_username_genus_annotated,
+        user_username_species_annotated) = cur.fetchone()
 
+    family_confusable_typed = bool(family_confusable) if isinstance(family_confusable, int) else family_confusable
+    genus_confusable_typed = bool(genus_confusable) if isinstance(genus_confusable, int) else genus_confusable
     species_confusable_typed = bool(species_confusable) if isinstance(species_confusable, int) else species_confusable
     app.logger.info('post_overlay: image_id = %s' % (image_id_string))
     return json.dumps({
@@ -257,13 +283,21 @@ def post_overlay():
         'image_filepath': image_filepath,
         'image_date_added': image_date_added,
         'image_date_collected': image_date_collected,
-        'image_date_annotated': str(image_date_annotated),
+        'image_date_family_annotated': str(image_date_family_annotated),
+        'image_date_genus_annotated': str(image_date_genus_annotated),
+        'image_date_species_annotated': str(image_date_species_annotated),
         'image_width': image_width,
         'image_height': image_height,
+        'family_name': str(family_name),
+        'family_confusable': str(family_confusable_typed),
+        'genus_name': str(genus_name),
+        'genus_confusable': str(genus_confusable_typed),
         'species_name': str(species_name),
         'species_confusable': str(species_confusable_typed),
         'username_added': user_username_added,
-        'username_annotated': str(user_username_annotated),
+        'username_family_annotated': str(user_username_family_annotated),
+        'username_genus_annotated': str(user_username_genus_annotated),
+        'username_species_annotated': str(user_username_species_annotated),
     })
 
 
