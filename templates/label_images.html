@@ -19,13 +19,75 @@ $(document).ready(function() {
     var state = status_select.val();
     if (state == 'Unannotated') {
       $('#source-select').prop('disabled', true);
-      $('#species-select').prop('disabled', true);
+      var family_select = $('#family-select');
+      var genus_select = $('#genus-select');
+      var species_select = $('#species-select');
+      // disable the selectors and remove populated options
+      family_select.prop('disabled', true);
+      genus_select.prop('disabled', true);
+      species_select.prop('disabled', true);
+      genus_select.find('option').not(':eq(0)').remove();
+      species_select.find('option').not(':eq(0)').remove();
     }
     else if (state == 'Annotated') {
       $('#source-select').prop('disabled', false);
-      $('#species-select').prop('disabled', false);
+      $('#family-select').prop('disabled', false);
     }
     //console.log(state);
+  });
+  var genus_list;
+  $('#family-select').change(function() {
+    var family_select = $(this);
+    var family_state = family_select.val();
+    console.log(family_state);
+    var genus_select = $('#genus-select');
+    var species_select = $('#species-select');
+    species_select.find('option').not(':eq(0)').remove();
+    genus_select.find('option').not(':eq(0)').remove();
+    if (family_state == 'All') {
+      genus_select.prop('disabled', true);
+      species_select.prop('disabled', true);
+    }
+    else if (family_state != 'All') {
+      genus_select.prop('disabled', false);
+      species_select.prop('disabled', true);
+      // remove all but the "All" option
+      var families = {{ families|safe }}
+      // find the genus list of the selected family
+      var family = families.filter(function (obj) {
+        return obj.family_name === family_state;
+      })[0];
+      genus_list = family.genus_list;
+      $.each(genus_list, function(i, genus) {
+        genus_select.append($('<option>', {
+          value: genus.genus_name,
+          text: genus.genus_name,
+        }));
+      });
+    }
+  });
+  $('#genus-select').change(function() {
+    var genus_select = $(this);
+    var genus_state = genus_select.val();
+    var species_select = $('#species-select');
+    species_select.find('option').not(':eq(0)').remove();
+    if (genus_state == 'All') {
+      species_select.prop('disabled', true);
+    }
+    else if (genus_state != 'All') {
+      species_select.prop('disabled', false);
+      var genus = genus_list.filter(function (obj) {
+        return obj.genus_name === genus_state;
+      })[0];
+      console.log(genus_state);
+      var species_list = genus.species_list;
+      $.each(species_list, function(i, species) {
+        species_select.append($('<option>', {
+          value: species.species_name,
+          text: species.species_name,
+        }));
+      });
+    }
   });
 });
 $(document).ready(function() {
@@ -33,6 +95,8 @@ $(document).ready(function() {
     var limit = $('#limit-input').val();
     var select_status = $('#status-select').val();
     var select_source = $('#source-select').val();
+    var select_family = $('#family-select').val();
+    var select_genus = $('#genus-select').val();
     var select_species = $('#species-select').val();
 
     $.ajax({
@@ -41,6 +105,8 @@ $(document).ready(function() {
         'limit': limit,
         'status': select_status,
         'source': select_source,
+        'family': select_family,
+        'genus': select_genus,
         'species': select_species,
       }),
       type: 'POST',
@@ -60,8 +126,18 @@ $(document).ready(function() {
             'width': images[i].width,
             'height': images[i].height,
             }).appendTo(figure);
+
+          // display the most specific known classification for this image
+          var caption;
+          if (images[i].species_name != "None")
+            caption = images[i].species_name;
+          else if (images[i].genus_name != "None")
+            caption = images[i].genus_name;
+          else
+            caption = images[i].family_name;
+
           var figcaption = jQuery('<figcaption/>', {
-            'html': images[i].species_name,
+            'html': caption,
           }).appendTo(figure);
           img.lazyload();
         }
@@ -120,14 +196,30 @@ $(document).ready(function() {
       </select>
     </p>
   </div>
+  <div id="families">
+    Families:
+    <p>
+      <select id="family-select" disabled="true">
+        <option>All</option>
+        {% for family in families %}
+          <option>{{ family.family_name }}</option>
+        {% endfor %}
+      </select>
+    </p>
+  </div>
+  <div id="genera">
+    Genera:
+    <p>
+      <select id="genus-select" disabled="true">
+        <option>All</option>
+      </select>
+    </p>
+  </div>
   <div id="species">
-    Species to include:
+    Species:
     <p>
       <select id="species-select" disabled="true">
         <option>All</option>
-        {% for sp in species %}
-          <option>{{ sp.species_name }}</option>
-        {% endfor %}
       </select>
     </p>
   </div>

@@ -46,7 +46,7 @@ div#source {
   padding-left: 10px;
   float: left;
 }
-div#species {
+div#species,#genera,#families {
   padding-left: 10px;
   float: left;
 }
