@@ -186,6 +186,11 @@ $(document).ready(function() {
       var family_id = family_clicked.attr('id');
       var family_name = family_clicked.attr('data-action');
 
+      if (family_id == "None" && family_name == "None") {
+        family_id = null;
+        family_name = null;
+      }
+
       console.log(
         "species_id: " + species_id + ", species_name: " + species_name + ", " +
         "genus_id: " + genus_id + ", genus_name: " + genus_name + ", " +

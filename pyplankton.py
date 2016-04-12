@@ -117,7 +117,7 @@ def post_labels():
     species_id_string = request.form['species_id']
     genus_id_string = request.form['genus_id']
     family_id_string = request.form['family_id']
-    type_string = request.form['type']
+    #type_string = request.form['type']
 
     # TODO: need to get this from the interface
     current_user = 'hendrik'
@@ -186,6 +186,7 @@ def post_labels():
 
     app.logger.info('post_labels: %d images to species_id %s' % (
         len(values), species_id_string))
+    # a null in javascript is passed here as an empty string
     info_list = ['  image_id %s set to' % (value[9]) +
                  ' family_id %s on %s by %s' % (value[0], value[3], value[6]) +
                  ' genus_id %s on %s by %s' % (value[1], value[4], value[7]) +
@@ -338,6 +339,8 @@ def label_images():
         genus_list = taxonomy_dict[family_id]['genus_list'].values()
         taxonomy_dict[family_id]['genus_list'] = genus_list
         family_list.append(taxonomy_dict[family_id])
+
+    family_list.append({'family_id': None, 'family_name': 'None'})
 
     #app.logger.info('label_images: %d species' % (len(species)))
     return render_template('label_images.html',
