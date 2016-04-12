@@ -129,12 +129,14 @@ $(document).ready(function() {
 
           // display the most specific known classification for this image
           var caption;
-          if (images[i].species_name != "None")
+          if (images[i].species_name != null)
             caption = images[i].species_name;
-          else if (images[i].genus_name != "None")
+          else if (images[i].genus_name != null)
             caption = images[i].genus_name;
-          else
+          else if (images[i].family_name != null)
             caption = images[i].family_name;
+          else
+            caption = "unknown";
 
           var figcaption = jQuery('<figcaption/>', {
             'html': caption,

@@ -114,7 +114,9 @@ def post_labels():
     image_id_list = image_id_string.split(', ')
 
     # get the id and which field to set
-    id_string = request.form['id']
+    species_id_string = request.form['species_id']
+    genus_id_string = request.form['genus_id']
+    family_id_string = request.form['family_id']
     type_string = request.form['type']
 
     # TODO: need to get this from the interface
@@ -127,53 +129,26 @@ def post_labels():
 
     current_time = strftime('%Y-%m-%d %H:%M:%S')
 
-    # fields that are not explicitly set are set to None
-    species_id_string, genus_id_string, family_id_string = None, None, None
-    image_date_species_annotated, image_user_id_species_annotated = None, None
-    image_date_genus_annotated, image_user_id_genus_annotated = None, None
-    image_date_family_annotated, image_user_id_family_annotated = None, None
-
-    if type_string == 'species':
-        # set the species
-        species_id_string = id_string
+    if species_id_string is None:
+        image_date_species_annotated = None
+        image_user_id_species_annotated = None
+    else:
         image_date_species_annotated = current_time
         image_user_id_species_annotated = current_user_id
-        # set the genus
-        cur = g.db.execute(
-            'select species_genus_id from species where species_id=?',
-            (species_id_string,),
-        )
-        (genus_id_string,) = cur.fetchone()
-        image_date_genus_annotated = current_time
-        image_user_id_genus_annotated = current_user_id
-        # set the family
-        cur = g.db.execute(
-            'select genus_family_id from genus where genus_id=?',
-            (genus_id_string,)
-        )
-        (family_id_string,) = cur.fetchone()
-        image_date_family_annotated = current_time
-        image_user_id_family_annotated = current_user_id
-    elif type_string == 'genus':
-        # set the genus, species is unknown
-        genus_id_string = id_string
-        image_date_genus_annotated = current_time
-        image_user_id_genus_annotated = current_user_id
-        # set the family
-        cur = g.db.execute(
-            'select genus_family_id from genus where genus_id=?',
-            (genus_id_string,)
-        )
-        (family_id_string,) = cur.fetchone()
-        image_date_family_annotated = current_time
-        image_user_id_family_annotated = current_user_id
-    elif type_string == 'family':
-        # set the family, genus and species are unknown
-        family_id_string = id_string
-        image_date_family_annotated = current_time
-        image_user_id_family_annotated = current_user_id
+
+    if genus_id_string is None:
+        image_date_genus_annotated = None
+        image_user_id_genus_annotated = None
     else:
-        raise ValueError('type_string must be one of {family, genus, species}')
+        image_date_genus_annotated = current_time
+        image_user_id_genus_annotated = current_user_id
+
+    if family_id_string is None:
+        image_date_family_annotated = None
+        image_user_id_family_annotated = None
+    else:
+        image_date_family_annotated = current_time
+        image_user_id_family_annotated = current_user_id
 
     values = []
     for image_id in image_id_list:
@@ -211,8 +186,11 @@ def post_labels():
 
     app.logger.info('post_labels: %d images to species_id %s' % (
         len(values), species_id_string))
-    info_list = ['  image_id %s set to species_id %s by %s on %s' % (
-        value[3], value[0], value[2], value[1]) for value in values]
+    info_list = ['  image_id %s set to' % (value[9]) +
+                 ' family_id %s on %s by %s' % (value[0], value[3], value[6]) +
+                 ' genus_id %s on %s by %s' % (value[1], value[4], value[7]) +
+                 ' species_id %s on %s by %s' % (value[2], value[5], value[8])
+                 for value in values]
     app.logger.info('post_labels:\n%s' % ('\n'.join(info_list)))
     return json.dumps({'status': 'OK', 'rows_updated': cur.rowcount})
 
@@ -323,16 +301,19 @@ def label_images():
         (family_id, family_name,
             genus_id, genus_name,
             species_id, species_name) = result_tuple
+        species_name = None if species_name is None else str(species_name)
+        genus_name = None if genus_name is None else str(genus_name)
+        family_name = None if family_name is None else str(family_name)
         if family_id not in taxonomy_dict:
             taxonomy_dict[family_id] = {
                 'family_id': family_id,
-                'family_name': str(family_name),
+                'family_name': family_name,
                 'genus_list': {genus_id: {
                     'genus_id': genus_id,
-                    'genus_name': str(genus_name),
+                    'genus_name': genus_name,
                     'species_list': [{
                         'species_id': species_id,
-                        'species_name': str(species_name),
+                        'species_name': species_name,
                     }],
                 }},
             }
@@ -340,16 +321,16 @@ def label_images():
             if genus_id not in taxonomy_dict[family_id]['genus_list']:
                 taxonomy_dict[family_id]['genus_list'][genus_id] = {
                     'genus_id': genus_id,
-                    'genus_name': str(genus_name),
+                    'genus_name': genus_name,
                     'species_list': [{
                         'species_id': species_id,
-                        'species_name': str(species_name),
+                        'species_name': species_name,
                     }],
                 }
             else:
                 taxonomy_dict[family_id]['genus_list'][genus_id]['species_list'].append({
                     'species_id': species_id,
-                    'species_name': str(species_name),
+                    'species_name': species_name,
                 })
 
     family_list = []
@@ -469,6 +450,9 @@ def begin_label():
         genus_confusable_typed = bool(genus_confusable) if isinstance(genus_confusable, int) else genus_confusable
         species_confusable_typed = bool(species_confusable) if isinstance(species_confusable, int) else species_confusable
 
+        species_name = None if species_name is None else str(species_name)
+        genus_name = None if genus_name is None else str(genus_name)
+        family_name = None if family_name is None else str(family_name)
         images.append({
             'image_id': image_id,
             'image_filepath': image_filepath,
@@ -479,11 +463,11 @@ def begin_label():
             'image_date_species_annotated': str(image_date_species_annotated),
             'image_height': image_height,
             'image_width': image_width,
-            'family_name': str(family_name),
+            'family_name': family_name,
             'family_confusable': family_confusable_typed,
-            'genus_name': str(genus_name),
+            'genus_name': genus_name,
             'genus_confusable': genus_confusable_typed,
-            'species_name': str(species_name),
+            'species_name': species_name,
             'species_confusable': species_confusable_typed,
             'username_added': user_added,
             'username_annotated': str(user_annotated),

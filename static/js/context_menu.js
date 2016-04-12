@@ -28,8 +28,12 @@ $(document).ready(function() {
 $(document).ready(function() {
   function update_labels(event, selection) {
     var type = selection['type'];  // indicates whether to change family, genus, or species
-    var id = selection['id'];
-    var name = selection['name'];
+    var species_id = selection['species_id'];
+    var species_name = selection['species_name'];
+    var genus_id = selection['genus_id'];
+    var genus_name = selection['genus_name'];
+    var family_id = selection['family_id'];
+    var family_name = selection['family_name'];
 
     var children = $('#selectable').children('.ui-selected');
     // hide it AFTER the action was triggered
@@ -41,13 +45,16 @@ $(document).ready(function() {
       selected_ids.push(children_array[i].children[0].id);
     }
     var children_string = selected_ids.join(', ');
-    var rows_updated = -1;
     $.ajax({
       url: '/update_labels',
       data: jQuery.param({
         'type': type,
-        'id': id, 
-        'name': name,
+        'species_id': species_id, 
+        'species_name': species_name,
+        'genus_id': genus_id, 
+        'genus_name': genus_name,
+        'family_id': family_id, 
+        'family_name': family_name,
         'image_id': children_string, 
       }),
       type: 'POST',
@@ -55,10 +62,22 @@ $(document).ready(function() {
         console.log("success " + response);
         // confirm that the number of rows updated in database matches the number of images selected
         var result = JSON.parse(response);
-        rows_updated = result['rows_updated'];
+        var rows_updated = result['rows_updated'];
         console.log('success: ' + rows_updated);
         if (children.length != rows_updated)
           alert(children.length + ' images were selected, but ' + rows_updated + ' were updated in the database!');
+
+        // display the most specific name we have for each image
+        var name;
+        console.log(species_name + " " + genus_name + " " + family_name);
+        if (species_name != null)
+          name = species_name;
+        else if (genus_name != null)
+          name = genus_name;
+        else if (family_name != null)
+          name = family_name;
+        else
+          name = "None";
 
         for (i = 0; i < children.length; i++) {
           var child = children[i].children[1];
@@ -76,7 +95,6 @@ $(document).ready(function() {
       },
       error: function(error) {
         console.log("error " + error);
-        rows_updated = -1; 
       }
     });
   }
@@ -84,88 +102,106 @@ $(document).ready(function() {
   $(function(){
     // trigger only when the direct descendant list item is clicked
     $('#species-menu > li').on('click', function(e) {
-      var clicked = $(this);
-      var species_id = clicked.attr('id');
-      var species_name = clicked.attr('data-action');
-      console.log("species_id: " + clicked.attr('id') + ", species_name: " + species_name);
+      var species_clicked = $(this);
+      var genus_clicked = species_clicked.closest('#genus-menu > li');
+      var family_clicked = genus_clicked.closest('#family-menu > li');
+      
+      var species_id = species_clicked.attr('id');
+      var species_name = species_clicked.attr('data-action');
+      var genus_id = genus_clicked.attr('id');
+      var genus_name = genus_clicked.attr('data-action');
+      var family_id = family_clicked.attr('id');
+      var family_name = family_clicked.attr('data-action');
+
+      // need to make these null explicitly, because the context menu
+      // labels are not converted to json before being passed
+      if (species_id == "None" && species_name == "None") {
+        species_id = null;
+        species_name = null;
+      }
+      if (genus_id == "None" && genus_name == "None") {
+        genus_id = null;
+        genus_name = null;
+      }
+
+      console.log(
+        "species_id: " + species_id + ", species_name: " + species_name + ", " +
+        "genus_id: " + genus_id + ", genus_name: " + genus_name + ", " +
+        "family_id: " + family_id + ", family_name: " + family_name
+      );
+
       e.stopPropagation();
-      var rows_updated = update_labels(e, {'type': 'species', 'id': species_id, 'name': species_name});
-      console.log(rows_updated);
+      update_labels(e, {
+        'type': 'species',
+        'species_id': species_id,
+        'species_name': species_name,
+        'genus_id': genus_id,
+        'genus_name': genus_name,
+        'family_id': family_id,
+        'family_name': family_name,
+      });
     });
+
     $('#genus-menu > li').on('click', function(e) {
-      var clicked = $(this);
-      var genus_id = clicked.attr('id');
-      var genus_name = clicked.attr('data-action');
-      console.log("genus_id: " + clicked.attr('id') + ", genus_name: " + genus_name);
+      var genus_clicked = $(this);
+      var family_clicked = genus_clicked.closest('#family-menu > li');
+
+      var species_id = null;
+      var species_name = null;
+      var genus_id = genus_clicked.attr('id');
+      var genus_name = genus_clicked.attr('data-action');
+      var family_id = family_clicked.attr('id');
+      var family_name = family_clicked.attr('data-action');
+
+      if (genus_id == "None" && genus_name == "None") {
+        genus_id = null;
+        genus_name = null;
+      }
+
+      console.log(
+        "species_id: " + species_id + ", species_name: " + species_name + ", " +
+        "genus_id: " + genus_id + ", genus_name: " + genus_name + ", " +
+        "family_id: " + family_id + ", family_name: " + family_name
+      );
+
       e.stopPropagation();
-      var rows_updated = update_labels(e, {'type': 'genus', 'id': genus_id, 'name': genus_name});
-      console.log(rows_updated);
+      update_labels(e, {
+        'type': 'species',
+        'species_id': species_id,
+        'species_name': species_name,
+        'genus_id': genus_id,
+        'genus_name': genus_name,
+        'family_id': family_id,
+        'family_name': family_name,
+      });
     });
+
     $('#family-menu > li').on('click', function(e) {
-      var clicked = $(this);
-      var family_id = clicked.attr('id');
-      var family_name = clicked.attr('data-action');
-      console.log("family_id: " + clicked.attr('id') + ", family_name: " + family_name);
+      var family_clicked = $(this);
+
+      var species_id = null;
+      var species_name = null;
+      var genus_id = null;
+      var genus_name = null;
+      var family_id = family_clicked.attr('id');
+      var family_name = family_clicked.attr('data-action');
+
+      console.log(
+        "species_id: " + species_id + ", species_name: " + species_name + ", " +
+        "genus_id: " + genus_id + ", genus_name: " + genus_name + ", " +
+        "family_id: " + family_id + ", family_name: " + family_name
+      );
+
       e.stopPropagation();
-      var rows_updated = update_labels(e, {'type': 'family', 'id': family_id, 'name': family_name});
-      console.log(rows_updated);
+      update_labels(e, {
+        'type': 'species',
+        'species_id': species_id,
+        'species_name': species_name,
+        'genus_id': genus_id,
+        'genus_name': genus_name,
+        'family_id': family_id,
+        'family_name': family_name,
+      });
     });
   });
-  //// If the menu element is clicked
-  //$("#family-menu li").click(function(event){
-  //    // This is the triggered action name
-  //    event.stopPropagation();
-  //    var clicked = $(this);
-  //    console.log(clicked);
-  //    var family_id = clicked.attr('id');
-  //    var family = clicked.attr('data-action');
-  //    console.log("family_id: " + family_id + ", family: " + family);
-  //    return;
-  //    var clicked = $(this);
-  //    var species = clicked.attr('data-action');
-  //    var cls = clicked.attr('cls');
-  //    var species_id = clicked.attr('id');
-  //    console.log('species_id: ' + species_id + ', species: ' + species);
-  //    var children = $('#selectable').children('.ui-selected');
-
-  //    // hide it AFTER the action was triggered
-  //    $("#family-menu").hide(100);
-
-  //    var children_array = jQuery.makeArray(children);
-  //    selected_ids = [];
-  //    for (i = 0; i < children_array.length; i++) {
-  //      selected_ids.push(children_array[i].children[0].id);
-  //    }
-  //    var children_string = selected_ids.join(', ');
-  //    $.ajax({
-  //      url: '/update_labels',
-  //      data: jQuery.param({'image_id': children_string, 'species_id': species_id}),
-  //      type: 'POST',
-  //      success: function(response) {
-  //        console.log("success " + response);
-  //        // confirm that the number of rows updated in database matches the number of images selected
-  //        var result = JSON.parse(response);
-  //        var rows_updated = result['rows_updated'];
-  //        if (children.length != rows_updated)
-  //          alert(children.length + ' images were selected, but ' + rows_updated + ' were updated in the database!');
-
-  //        for (i = 0; i < children.length; i++) {
-  //          var child = children[i].children[1];
-  //          child.innerHTML = species;
-  //        }
-
-  //        // ensure the message is on-screen by placing it under the cursor
-  //        var image_str = " image";
-  //        if (rows_updated > 1)
-  //          image_str += "s";
-  //        $('.toast').text(rows_updated + image_str + " labeled as " + species).fadeIn(250).delay(500).fadeOut(250).css({
-  //          top: event.pageY + "px",
-  //          left: event.pageX + "px",
-  //        });
-  //      },
-  //      error: function(error) {
-  //        console.log("error " + error);
-  //      }
-  //    });
-  //});
 });
