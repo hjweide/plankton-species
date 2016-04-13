@@ -342,64 +342,115 @@ def label_images():
 
     family_list.append({'family_id': None, 'family_name': 'None'})
 
+    cur = g.db.execute('select user_id, user_username from user')
+    result = cur.fetchall()
+    user_list = []
+    for user_id, user_name in result:
+        user_list.append({
+            'user_id': user_id,
+            'user_username': user_name
+        })
+
     #app.logger.info('label_images: %d species' % (len(species)))
     return render_template('label_images.html',
-                           families=family_list)
+                           families=family_list,
+                           users=user_list)
 
 
 @app.route('/label', methods=['POST'])
 def begin_label():
     limit_string = str(request.form['limit'])
-    status_string = str(request.form['status'])
     source_string = str(request.form['source'])
     family_string = str(request.form['family'])
     genus_string = str(request.form['genus'])
     species_string = str(request.form['species'])
 
-    source = ['Algorithm', 'Human'].index(source_string)
+    #source = ['Algorithm', 'Human'].index(source_string)
 
-    app.logger.info('begin_label:'
-                    ' limit = %s, status = %s, source = %s, species = %s' % (
-                        limit_string, status_string, source_string,
-                        species_string))
+    app.logger.info(
+        'begin_label:'
+        ' limit = %s, source = %s, ' % (
+            limit_string, source_string) +
+        'family = %s, genus = %s, species = %s' % (
+            family_string, genus_string, species_string)
+    )
 
-    if status_string == 'Unannotated':
-        where_clause = ('where'
-                        '  image.image_species_id is null ')
-        values = (limit_string,)
-    elif status_string == 'Annotated':
-        if family_string == 'All':
-            where_clause = ('where'
-                            '  image.image_family_id is not null and '
-                            '  image_user_annotated.user_human=? ')
-            values = (source, limit_string)
+    most_specific_rank = None  # need to know which table to query for the user
+    values = []
+    if family_string == 'All':
+        where_clause = 'where image_family.family_id is not null'
+        most_specific_rank = 'family'
+    elif family_string == 'None':
+        where_clause = 'where image_family.family_id is null'
+    else:
+        assert family_string.isdigit(), (
+            'family_id must be an int to query')
+        family_id = family_string
+        values += [family_id]
+        most_specific_rank = 'family'
+        if genus_string == 'All':
+            where_clause = (
+                'where'
+                ' image_family.family_id=? and'
+                ' image_genus.genus_id is not null')
+            most_specific_rank = 'genus'
+        elif genus_string == 'None':
+            where_clause = (
+                'where'
+                ' image_family.family_id=? and'
+                ' image_genus.genus_id is null')
         else:
-            if genus_string == 'All':
-                where_clause = ('where'
-                                '  image.image_family_id=('
-                                '    select '
-                                '      family_id '
-                                '    from family '
-                                '    where '
-                                '      family_name=?) and'
-                                '  image_user_annotated.user_human=? ')
-                values = (family_string, source, limit_string)
+            assert genus_string.isdigit(), (
+                'genus_id must be an int to query')
+            genus_id = genus_string
+            values += [genus_id]
+            most_specific_rank = 'genus'
+            if species_string == 'All':
+                where_clause = (
+                    'where'
+                    ' image_family.family_id=? and'
+                    ' image_genus.genus_id=? and '
+                    ' image_species.species_id is not null')
+                most_specific_rank = 'species'
+            elif species_string == 'None':
+                where_clause = (
+                    'where'
+                    ' image_family.family_id=? and'
+                    ' image_genus.genus_id=? and '
+                    ' image_species.species_id is null')
             else:
-                where_clause = ('where'
-                                ' image.image_family_id=('
-                                '    select '
-                                '      family_id '
-                                '    from family '
-                                '    where '
-                                '      family_name=?) and'
-                                '  image.image_genus_id=('
-                                '    select '
-                                '      genus_id '
-                                '    from genus '
-                                '    where '
-                                '      genus_name=?) and'
-                                '  image_user_annotated.user_human=? ')
-                values = (family_string, genus_string, source, limit_string)
+                assert species_string.isdigit(), (
+                    'species_id must be an int to query')
+                species_id = species_string
+                values += [species_id]
+                where_clause = (
+                    'where'
+                    ' image_family.family_id=? and'
+                    ' image_genus.genus_id=? and'
+                    ' image_species.species_id=?')
+                most_specific_rank = 'species'
+
+    # get images where the most specific level of classification
+    # was made by this user
+    if source_string == 'Humans & Algorithms':
+        pass
+    elif source_string == 'Algorithms':
+        assert most_specific_rank is not None
+        where_clause += (
+            ' and image_user_%s_annotated.user_human=0' % most_specific_rank)
+    elif source_string == 'Humans only':
+        assert most_specific_rank is not None
+        where_clause += (
+            ' and image_user_%s_annotated.user_human=1' % most_specific_rank)
+    else:
+        user_id = source_string
+        assert most_specific_rank is not None
+        where_clause += (
+            ' and image_user_%s_annotated.user_id=?' % most_specific_rank)
+        values += [user_id]
+
+    # the limit is always last
+    values += [limit_string]
 
     cur = g.db.execute(
         'select'
@@ -416,7 +467,7 @@ def begin_label():
         '  image_species.species_name,'
         '  image_species.species_confusable,'
         '  image_user_added.user_username,'
-        '  image_user_annotated.user_username '
+        '  image_user_family_annotated.user_username '
         'from image '
         'join user as image_user_added on '
         '  image.image_user_id_added=image_user_added.user_id '
@@ -426,10 +477,17 @@ def begin_label():
         '  image.image_genus_id=image_genus.genus_id '
         'left outer join species as image_species on '
         '  image.image_species_id=image_species.species_id '
-        'left outer join user as image_user_annotated on '
-        '  image.image_user_id_family_annotated=image_user_annotated.user_id '
+        'left outer join user as image_user_family_annotated on '
+        '  image.image_user_id_family_annotated'
+        '    =image_user_family_annotated.user_id '
+        'left outer join user as image_user_genus_annotated on '
+        '  image.image_user_id_genus_annotated'
+        '    =image_user_genus_annotated.user_id '
+        'left outer join user as image_user_species_annotated on '
+        '  image.image_user_id_species_annotated'
+        '    =image_user_species_annotated.user_id '
         + where_clause +
-        'limit ?', values
+        ' limit ?', values
     )
 
     result = cur.fetchall()
@@ -479,22 +537,7 @@ def begin_label():
             'src': image_filepath,
         })
 
-    cur = g.db.execute(
-        'select species_id, species_name '
-        'from species '
-        'order by species_name;'
-    )
-    result = cur.fetchall()
-
-    labels = []
-    for (species_id, species_name) in result:
-        labels.append({
-            'label_id': species_id,
-            'label_name': str(species_name),
-        })
-
-    app.logger.info('begin_label: return %d images and %d species' % (
-        len(images), len(labels)))
+    app.logger.info('begin_label: return %d images' % (len(images)))
     return json.dumps(images)
 
 
