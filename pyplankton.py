@@ -129,33 +129,40 @@ def post_labels():
 
     current_time = strftime('%Y-%m-%d %H:%M:%S')
 
-    if species_id_string is None:
+    # nulls from javascript arrive as empty strings...
+    if species_id_string == '':
+        image_species_id = None
         image_date_species_annotated = None
         image_user_id_species_annotated = None
     else:
+        image_species_id = int(species_id_string)
         image_date_species_annotated = current_time
         image_user_id_species_annotated = current_user_id
 
-    if genus_id_string is None:
+    if genus_id_string == '':
+        image_genus_id = None
         image_date_genus_annotated = None
         image_user_id_genus_annotated = None
     else:
+        image_genus_id = int(genus_id_string)
         image_date_genus_annotated = current_time
         image_user_id_genus_annotated = current_user_id
 
-    if family_id_string is None:
+    if family_id_string == '':
+        image_family_id = None
         image_date_family_annotated = None
         image_user_id_family_annotated = None
     else:
+        image_family_id = int(family_id_string)
         image_date_family_annotated = current_time
         image_user_id_family_annotated = current_user_id
 
     values = []
     for image_id in image_id_list:
         values.append((
-            family_id_string,
-            genus_id_string,
-            species_id_string,
+            image_family_id,
+            image_genus_id,
+            image_species_id,
             image_date_family_annotated,
             image_date_genus_annotated,
             image_date_species_annotated,
@@ -377,11 +384,37 @@ def begin_label():
 
     most_specific_rank = None  # need to know which table to query for the user
     values = []
-    if family_string == 'All':
-        where_clause = 'where image_family.family_id is not null'
+    if family_string == genus_string == species_string == 'All':
+        where_clause = (
+            'where'
+            ' image_family.family_id is not null and'
+            ' image_genus.genus_id is not null and '
+            ' image_species.species_id is not null')
+        most_specific_rank = 'species'
+    elif family_string == genus_string == 'All':
+        assert species_string == 'None'
+        where_clause = (
+            'where'
+            ' image_family.family_id is not null and'
+            ' image_genus.genus_id is not null and '
+            ' image_species.species_id is null')
+        most_specific_rank = 'genus'
+    elif family_string == 'All':
+        assert genus_string == species_string == 'None'
+        where_clause = (
+            'where'
+            ' image_family.family_id is not null and'
+            ' image_genus.genus_id is null and '
+            ' image_species.species_id is null')
         most_specific_rank = 'family'
     elif family_string == 'None':
-        where_clause = 'where image_family.family_id is null'
+        assert genus_string == species_string == 'None'
+        # in practice if family_id is null the others should be too
+        where_clause = (
+            'where'
+            ' image_family.family_id is null and'
+            ' image_genus.genus_id is null and'
+            ' image_species.species_id is null')
     else:
         assert family_string.isdigit(), (
             'family_id must be an int to query')
@@ -395,6 +428,7 @@ def begin_label():
                 ' image_genus.genus_id is not null')
             most_specific_rank = 'genus'
         elif genus_string == 'None':
+            assert species_string == 'None'
             where_clause = (
                 'where'
                 ' image_family.family_id=? and'
