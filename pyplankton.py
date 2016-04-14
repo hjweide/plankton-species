@@ -5,7 +5,7 @@ import warnings
 from flask import Flask, Response
 from flask import request, session, g, redirect, url_for, abort
 from flask import send_from_directory
-from flask import render_template, flash
+from flask import render_template
 
 from PIL import Image
 import StringIO
@@ -45,6 +45,31 @@ def image(filename):
 # entry point when app is started
 @app.route('/', methods=['GET'])
 def home():
+    return render_template('home.html')
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        if request.form['username'] != 'hendrik'\
+                or  request.form['password'] != 'pass':
+            error = 'Invalid username or password'
+        else:
+            session['logged_in'] = True
+            session['username'] = 'hendrik'
+            return redirect(url_for('overview'))
+    return render_template('home.html', error=error)
+
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return render_template('home.html')
+
+
+@app.route('/overview', methods=['GET'])
+def overview():
     cur = g.db.execute(
         'select '
         '  species.species_name, species.species_confusable, '
@@ -77,16 +102,16 @@ def home():
     )
     total = cur.fetchone()[0]
 
-    app.logger.info('home: annotated = %d, total = %d, len(counts) = %d' % (
+    app.logger.info('overview: annotated = %d, total = %d, len(counts) = %d' % (
         annotated, total, len(species_counts)))
-    return render_template('home.html',
+    return render_template('overview.html',
                            annotated=annotated,
                            total=total,
                            species_counts=species_counts)
 
 
-@app.route('/home/update', methods=['POST'])
-def home_update():
+@app.route('/overview/update', methods=['POST'])
+def overview_update():
     species_name_string = request.form['species_name']
     species_confusable_string = request.form['species_confusable']
     species_confusable = 1 if species_confusable_string == 'true' else 0
@@ -102,7 +127,7 @@ def home_update():
 
     g.db.commit()
 
-    app.logger.info('home: set species %s to confusable = %s, updated = %d' % (
+    app.logger.info('overview_update: set species %s to confusable = %s, updated = %d' % (
         species_name_string, species_confusable, cur.rowcount))
     return json.dumps({'status': 'OK'})
 

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+
+<link rel=stylesheet type=text/css href="{{ url_for('static', filename='overview.css') }}">
+<link rel="stylesheet" type="text/css" href="../static/js/DataTables-1.10.11/media/css/jquery.dataTables.min.css" />
+<script src="../static/js/jquery-1.12.1.js"></script>
+<script src="../static/js/DataTables-1.10.11/media/js/jquery.dataTables.min.js"></script>
+
+<script>
+var species_counts_parse = {{ species_counts|safe }};
+$(document).ready(function() {
+    var table = $('#table').DataTable({
+        data: species_counts_parse,
+        columns: [
+            {title: "Species", data: "species_name"},
+            {
+              title: "Confusable", 
+              data: "species_confusable",
+              render: function(d, type, row) {
+                if (type === 'display') {
+                  return '<input type="checkbox" class="editor-active">';
+                }
+                return d;
+              },
+              //className: 'dt-body-center'
+            },
+            {title: "Number", data: "count_image_id"},
+        ],
+        rowCallback: function (row, d) {
+          $('input.editor-active', row).prop('checked', d.species_confusable == 1);
+        },
+        bInfo: false,
+        bFilter: false,
+        paging: false,
+        ordering: false,
+    });
+    $('#table input[type="checkbox"]').click(function(e) {
+        var $row = $(this).closest('tr');
+        var row_data = table.row($row).data();
+        //console.log(row_data);
+        $.ajax({
+          url: '/overview/update',
+          data: jQuery.param({
+            'species_name': row_data['species_name'],
+            'species_confusable': !row_data['species_confusable'],
+          }),
+          type: 'POST',
+          success: function(response) {
+            console.log('success ' + response);
+            // flip the boolean in the table only if the database is updated
+            row_data['species_confusable'] = !row_data['species_confusable'];
+          },
+          error: function(error) {
+            console.log('error ' + error);
+          }
+        });
+    });
+});
+</script>
+
+{% extends "layout.html" %}
+{% block body %}
+<div id="stats">
+Annotated: {{ annotated }} of {{ total }}
+</div>
+<table id="table" class="display" width="100%"></table>
+{% endblock %}
+</html>
