@@ -64,9 +64,9 @@ ul#family-menu > li ul.drop
 {
   margin: 0;
   padding: 0;
-  right: -50px;
-  /*left: 10px;*/
-  width: 100%;
+  /*right: -50px;*/
+  left: 75%;
+  width: min-content;
   display: none;
   position: absolute;
 }

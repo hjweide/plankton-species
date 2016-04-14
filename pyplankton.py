@@ -135,6 +135,7 @@ def post_labels():
         image_date_species_annotated = None
         image_user_id_species_annotated = None
     else:
+        assert species_id_string.isdigit(), 'species_id_string must be an int'
         image_species_id = int(species_id_string)
         image_date_species_annotated = current_time
         image_user_id_species_annotated = current_user_id
@@ -144,6 +145,7 @@ def post_labels():
         image_date_genus_annotated = None
         image_user_id_genus_annotated = None
     else:
+        assert genus_id_string.isdigit(), 'genus_id_string must be an int'
         image_genus_id = int(genus_id_string)
         image_date_genus_annotated = current_time
         image_user_id_genus_annotated = current_user_id
@@ -153,6 +155,7 @@ def post_labels():
         image_date_family_annotated = None
         image_user_id_family_annotated = None
     else:
+        assert family_id_string.isdigit(), 'family_id_string must be an int'
         image_family_id = int(family_id_string)
         image_date_family_annotated = current_time
         image_user_id_family_annotated = current_user_id
