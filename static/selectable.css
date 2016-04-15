@@ -42,7 +42,7 @@ div#filter {
 div#status {
   float: left;
 }
-div#source {
+div#source,#order {
   padding-left: 10px;
   float: left;
 }

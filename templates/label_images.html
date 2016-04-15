@@ -99,8 +99,9 @@ $(document).ready(function() {
     var select_family = $('#family-select').val();
     var select_genus = $('#genus-select').val();
     var select_species = $('#species-select').val();
+    var select_order = $('#order-select').val();
 
-    console.log(select_source + ' ' + select_family + ' ' + select_genus + ' ' + select_species);
+    console.log(select_source + ' ' + select_family + ' ' + select_genus + ' ' + select_species + ' ' + select_order);
 
     $.ajax({
       url: '/label',
@@ -110,6 +111,7 @@ $(document).ready(function() {
         'family': select_family,
         'genus': select_genus,
         'species': select_species,
+        'order': select_order,
       }),
       type: 'POST',
       success: function(response) {
@@ -227,6 +229,16 @@ $(document).ready(function() {
         {% for user in users %}
           <option value={{ user.user_id }}>{{ user.user_username }}</option>
         {% endfor %}
+      </select>
+    </p>
+  </div>
+  <div id="order">
+    Order by:
+    <p>
+      <select id="order-select">
+        <option value='Image Similarity'>Image Similarity</option>
+        <option value='Date Added'>Date Added</option>
+        <option value='Date Collected'>Date Collected</option>
       </select>
     </p>
   </div>

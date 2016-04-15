@@ -430,6 +430,7 @@ def begin_label():
     family_string = str(request.form['family'])
     genus_string = str(request.form['genus'])
     species_string = str(request.form['species'])
+    order_string = str(request.form['order'])
 
     #source = ['Algorithm', 'Human'].index(source_string)
 
@@ -542,6 +543,15 @@ def begin_label():
             ' and image_user_%s_annotated.user_id=?' % most_specific_rank)
         values += [user_id]
 
+    if order_string == 'Image Similarity':
+        order_by = ''
+    elif order_string == 'Date Added':
+        order_by = 'order by image.image_date_added'
+    elif order_string == 'Date Collected':
+        order_by = 'order by image.image_date_collected'
+    else:
+        assert False, '%s is not a valid ordering' % (order_string)
+
     # the limit is always last
     values += [limit_string]
 
@@ -579,8 +589,9 @@ def begin_label():
         'left outer join user as image_user_species_annotated on '
         '  image.image_user_id_species_annotated'
         '    =image_user_species_annotated.user_id '
-        + where_clause +
-        ' limit ?', values
+        + where_clause + ' '
+        + order_by + ' '
+        'limit ?', values
     )
 
     result = cur.fetchall()
