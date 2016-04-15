@@ -158,6 +158,9 @@ def overview_update():
 # when user chooses a new species for a set of images
 @app.route('/update_labels', methods=['POST'])
 def post_labels():
+    if not session.get('logged_in'):
+        return json.dump({'status': 'ERROR', 'rows_updated': 0})
+
     image_id_string = request.form['image_id']
     image_id_list = image_id_string.split(', ')
 
@@ -167,8 +170,7 @@ def post_labels():
     family_id_string = request.form['family_id']
     #type_string = request.form['type']
 
-    # TODO: need to get this from the interface
-    current_user = 'hendrik'
+    current_user = session['username']
     cur = g.db.execute(
         'select user_id from user where user_username=?',
         (current_user,)
@@ -927,8 +929,7 @@ def post_revisions():
     image_id_string = request.form['image_id']
     species_name_string = request.form['species_name']
 
-    # TODO: need to get this from the interface
-    username_annotated_string = 'hendrik'
+    username_annotated_string = session['username']
     image_date_annotated = strftime('%Y-%m-%d %H:%M:%S')
 
     values = (
