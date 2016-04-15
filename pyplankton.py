@@ -6,6 +6,7 @@ from flask import Flask, Response
 from flask import request, session, g, redirect, url_for, abort
 from flask import send_from_directory
 from flask import render_template
+from werkzeug import check_password_hash
 
 from PIL import Image
 import StringIO
@@ -52,24 +53,46 @@ def home():
 def login():
     error = None
     if request.method == 'POST':
-        if request.form['username'] != 'hendrik'\
-                or  request.form['password'] != 'pass':
-            error = 'Invalid username or password'
-        else:
+        username = request.form['username']
+        password = request.form['password']
+
+        login_successful = False
+        if username and password:
+            cur = g.db.execute(
+                'select'
+                ' user_username, '
+                ' user_password '
+                'from user where user_username=?', (username,)
+            )
+            result = cur.fetchone()
+            if result is not None:
+                user_username, user_password = result
+                if check_password_hash(user_password, password):
+                    login_successful = True
+
+        if login_successful:
             session['logged_in'] = True
-            session['username'] = 'hendrik'
+            session['username'] = user_username
             return redirect(url_for('overview'))
+        else:
+            error = 'Invalid username or password'
+
     return render_template('home.html', error=error)
 
 
 @app.route('/logout')
 def logout():
     session.pop('logged_in', None)
+    session.pop('username', None)
     return render_template('home.html')
 
 
 @app.route('/overview', methods=['GET'])
 def overview():
+    if not session.get('logged_in'):
+        return render_template(
+            'home.html', error='You must be logged in to do that')
+
     cur = g.db.execute(
         'select '
         '  species.species_name, species.species_confusable, '
@@ -318,6 +341,9 @@ def post_overlay():
 # when user chooses to work on labeling images manually
 @app.route('/label')
 def label_images():
+    if not session.get('logged_in'):
+        return render_template(
+            'home.html', error='You must be logged in to do that')
     cur = g.db.execute(
         'select'
         '  family.family_id, family.family_name, '
@@ -394,6 +420,9 @@ def label_images():
 
 @app.route('/label', methods=['POST'])
 def begin_label():
+    if not session.get('logged_in'):
+        return render_template(
+            'home.html', error='You must be logged in to do that')
     limit_string = str(request.form['limit'])
     source_string = str(request.form['source'])
     family_string = str(request.form['family'])
@@ -606,6 +635,9 @@ def begin_label():
 # when user chooses to review species
 @app.route('/review')
 def review_images():
+    if not session.get('logged_in'):
+        return render_template(
+            'home.html', error='You must be logged in to do that')
     cur = g.db.execute(
         'select species_name from species order by species_id'
     )
