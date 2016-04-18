@@ -71,10 +71,14 @@ def login():
                     login_successful = True
 
         if login_successful:
+            app.logger.info('login: successful login by user %s' % (
+                user_username))
             session['logged_in'] = True
             session['username'] = user_username
             return redirect(url_for('overview'))
         else:
+            app.logger.info('login: unsuccessful login by user %s' % (
+                user_username))
             error = 'Invalid username or password'
 
     return render_template('home.html', error=error)
@@ -83,7 +87,8 @@ def login():
 @app.route('/logout')
 def logout():
     session.pop('logged_in', None)
-    session.pop('username', None)
+    user_username = session.pop('username', None)
+    app.logger.info('logout: logout by user %s' % (user_username))
     return render_template('home.html')
 
 
@@ -149,8 +154,10 @@ def overview():
     )
     total = cur.fetchone()[0]
 
-    app.logger.info('overview: annotated = %d, total = %d, len(counts) = %d' % (
-        species_annotated, total, len(image_counts)))
+    app.logger.info(
+        'overview: total = %d' % (total) +
+        ', family = %d, genus = %d, species = %d' % (
+            family_annotated, genus_annotated, species_annotated))
     return render_template('overview.html',
                            family_annotated=family_annotated,
                            genus_annotated=genus_annotated,
@@ -677,6 +684,10 @@ def review_images():
     if not session.get('logged_in'):
         return render_template(
             'home.html', error='You must be logged in to do that')
+    # delete else-clause when review interface is available again
+    else:
+        return render_template('home.html', error=None)
+
     cur = g.db.execute(
         'select species_name from species order by species_id'
     )
