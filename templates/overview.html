@@ -7,13 +7,15 @@
 <script src="../static/js/DataTables-1.10.11/media/js/jquery.dataTables.min.js"></script>
 
 <script>
-var species_counts_parse = {{ species_counts|safe }};
+var image_counts_parse = {{ image_counts|safe }};
 $(document).ready(function() {
     var table = $('#table').DataTable({
-        data: species_counts_parse,
+        data: image_counts_parse,
         columns: [
+            {title: "Family", data: "family_name"},
+            {title: "Genus", data: "genus_name"},
             {title: "Species", data: "species_name"},
-            {
+            /*{
               title: "Confusable", 
               data: "species_confusable",
               render: function(d, type, row) {
@@ -23,12 +25,12 @@ $(document).ready(function() {
                 return d;
               },
               //className: 'dt-body-center'
-            },
-            {title: "Number", data: "count_image_id"},
+            },*/
+            {title: "Number", data: "image_count"},
         ],
-        rowCallback: function (row, d) {
+        /*rowCallback: function (row, d) {
           $('input.editor-active', row).prop('checked', d.species_confusable == 1);
-        },
+        },*/
         bInfo: false,
         bFilter: false,
         paging: false,
@@ -42,13 +44,13 @@ $(document).ready(function() {
           url: '/overview/update',
           data: jQuery.param({
             'species_name': row_data['species_name'],
-            'species_confusable': !row_data['species_confusable'],
+            /*'species_confusable': !row_data['species_confusable'],*/
           }),
           type: 'POST',
           success: function(response) {
             console.log('success ' + response);
             // flip the boolean in the table only if the database is updated
-            row_data['species_confusable'] = !row_data['species_confusable'];
+            /*row_data['species_confusable'] = !row_data['species_confusable'];*/
           },
           error: function(error) {
             console.log('error ' + error);
@@ -61,7 +63,9 @@ $(document).ready(function() {
 {% extends "layout.html" %}
 {% block body %}
 <div id="stats">
-Annotated: {{ annotated }} of {{ total }}
+  <div>Family annotated: {{ family_annotated }} of {{ total }}</div>
+  <div>Genus annotated: {{ genus_annotated }} of {{ total }}</div>
+  <div>Species annotated: {{ species_annotated }} of {{ total }}</div>
 </div>
 <table id="table" class="display" width="100%"></table>
 {% endblock %}

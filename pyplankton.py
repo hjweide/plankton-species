@@ -94,31 +94,55 @@ def overview():
             'home.html', error='You must be logged in to do that')
 
     cur = g.db.execute(
-        'select '
-        '  species.species_name, species.species_confusable, '
+        'select'
+        '  image_family.family_name,'
+        '  image_genus.genus_name,'
+        '  image_species.species_name,'
         '  count(image.image_id) '
-        'from species '
-        'left outer join image on '
-        '   species.species_id=image.image_species_id '
-        'group by species.species_id '
-        'order by count(image.image_id) desc'
+        'from image '
+        'left outer join family as image_family on'
+        '  image.image_family_id=image_family.family_id '
+        'left outer join genus as image_genus on '
+        '  image.image_genus_id=image_genus.genus_id '
+        'left outer join species as image_species on'
+        '  image.image_species_id=image_species.species_id '
+        'group by '
+        '  image_family.family_id,'
+        '  image_genus.genus_id,'
+        '  image_species.species_id'
     )
+
     result = cur.fetchall()
-    species_counts = []
-    for (species_name, species_confusable, count_image_id) in result:
-        species_counts.append({
+    image_counts = []
+    for family_name, genus_name, species_name, image_count in result:
+        image_counts.append({
+            'family_name': str(family_name),
+            'genus_name': str(genus_name),
             'species_name': str(species_name),
-            'species_confusable': species_confusable,
-            'count_image_id': count_image_id,
+            'image_count': image_count,
         })
+
+    cur = g.db.execute(
+        'select count(image_id) '
+        'from image '
+        'where image_family_id is not null'
+    )
+    family_annotated = cur.fetchone()[0]
+
+    cur = g.db.execute(
+        'select count(image_id) '
+        'from image '
+        'where image_genus_id is not null'
+    )
+    genus_annotated = cur.fetchone()[0]
 
     cur = g.db.execute(
         'select count(image_id) '
         'from image '
         'where image_species_id is not null'
     )
+    species_annotated = cur.fetchone()[0]
 
-    annotated = cur.fetchone()[0]
     cur = g.db.execute(
         'select count(image_id) '
         'from image'
@@ -126,11 +150,13 @@ def overview():
     total = cur.fetchone()[0]
 
     app.logger.info('overview: annotated = %d, total = %d, len(counts) = %d' % (
-        annotated, total, len(species_counts)))
+        species_annotated, total, len(image_counts)))
     return render_template('overview.html',
-                           annotated=annotated,
+                           family_annotated=family_annotated,
+                           genus_annotated=genus_annotated,
+                           species_annotated=species_annotated,
                            total=total,
-                           species_counts=species_counts)
+                           image_counts=image_counts)
 
 
 @app.route('/overview/update', methods=['POST'])
