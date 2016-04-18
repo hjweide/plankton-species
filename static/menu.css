@@ -26,3 +26,51 @@
 .custom-menu li:hover {
     background-color: #DEF;
 }
+
+ul#family-menu
+{
+  margin: 0px;
+  padding: 0px;
+  display: none;
+  z-index: 1000;
+  position: absolute;
+}
+
+.drop
+{
+  border: 1px solid #CCC;
+  white-space: nowrap;
+  font-family: sans-serif;
+  background: #FFF;
+  color: #333;
+  border-radius: 5px;
+  /*overflow-y: scroll;*/
+  display: block;
+  overflow: visible;
+}
+
+ul#family-menu li
+{
+    cursor: pointer;
+    list-style-type: none;
+    transition: all .3s ease;
+    padding: 10px;
+    text-decoration:none;
+    display: block;
+    color: #000;
+}
+
+ul#family-menu > li ul.drop
+{
+  margin: 0;
+  padding: 0;
+  /*right: -50px;*/
+  left: 75%;
+  width: min-content;
+  display: none;
+  position: absolute;
+}
+
+ul#family-menu li:hover {
+  background-color: #DEF;
+}

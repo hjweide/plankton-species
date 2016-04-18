@@ -14,34 +14,104 @@
 
 <script>
 $(document).ready(function() {
-  $('#status-select').change(function() {
-    var status_select = $(this);
-    var state = status_select.val();
-    if (state == 'Unannotated') {
-      $('#source-select').prop('disabled', true);
-      $('#species-select').prop('disabled', true);
+  var genus_list;
+  $('#family-select').change(function() {
+    var family_select = $(this);
+    var family_state = family_select.val();
+    var genus_select = $('#genus-select');
+    var species_select = $('#species-select');
+    var source_select = $('#source-select');
+
+    species_select.find('option:gt(1)').remove();
+    genus_select.find('option:gt(1)').remove();
+    // select all images annotated with at least a family id
+    if (family_state == 'All') {
+      genus_select.find('option[value=All]').prop('selected', true);
+      genus_select.prop('disabled', false);
+      species_select.find('option[value=All]').prop('selected', true);
+      species_select.prop('disabled', false);
+
+      source_select.prop('disabled', false);
     }
-    else if (state == 'Annotated') {
-      $('#source-select').prop('disabled', false);
-      $('#species-select').prop('disabled', false);
+    // select all images that have no family id
+    else if (family_state == 'None') {
+      genus_select.find('option[value=None]').prop('selected', true);
+      genus_select.prop('disabled', true);
+      species_select.find('option[value=None]').prop('selected', true);
+      species_select.prop('disabled', true);
+
+      source_select.prop('disabled', true);
     }
-    //console.log(state);
+    // select all images with a specific family id
+    else {
+      genus_select.prop('disabled', false);
+      species_select.prop('disabled', true);
+      source_select.prop('disabled', false);
+      // remove all but the "All" option
+      var families = {{ families|safe }};
+      // find the genus list of the selected family
+      var family = families.filter(function (obj) {
+        return obj.family_id == family_state;
+      })[0];
+
+      genus_list = family.genus_list;
+      $.each(genus_list, function(i, genus) {
+        genus_select.append($('<option>', {
+          value: genus.genus_id,
+          text: genus.genus_name,
+        }));
+      });
+    }
+  });
+  $('#genus-select').change(function() {
+    var genus_select = $(this);
+    var genus_state = genus_select.val();
+    var species_select = $('#species-select');
+    species_select.find('option:gt(1)').remove();
+    if (genus_state == 'All') {
+      species_select.prop('disabled', false);
+      species_select.find('option[value=All]').prop('selected', true);
+    }
+    else if (genus_state == 'None') {
+      species_select.prop('disabled', true);
+      species_select.find('option[value=None]').prop('selected', true);
+    }
+    else {
+      species_select.prop('disabled', false);
+      var genus = genus_list.filter(function (obj) {
+        return obj.genus_id == genus_state;
+      })[0];
+
+      var species_list = genus.species_list;
+      $.each(species_list, function(i, species) {
+        species_select.append($('<option>', {
+          value: species.species_id,
+          text: species.species_name,
+        }));
+      });
+    }
   });
 });
 $(document).ready(function() {
   $('#begin').click(function() {
     var limit = $('#limit-input').val();
-    var select_status = $('#status-select').val();
     var select_source = $('#source-select').val();
+    var select_family = $('#family-select').val();
+    var select_genus = $('#genus-select').val();
     var select_species = $('#species-select').val();
+    var select_order = $('#order-select').val();
+
+    console.log(select_source + ' ' + select_family + ' ' + select_genus + ' ' + select_species + ' ' + select_order);
 
     $.ajax({
       url: '/label',
       data: jQuery.param({
         'limit': limit,
-        'status': select_status,
         'source': select_source,
+        'family': select_family,
+        'genus': select_genus,
         'species': select_species,
+        'order': select_order,
       }),
       type: 'POST',
       success: function(response) {
@@ -60,8 +130,24 @@ $(document).ready(function() {
             'width': images[i].width,
             'height': images[i].height,
             }).appendTo(figure);
+
+          // display the most specific known classification for this image
+          var caption;
+          if (images[i].species_name != null) {
+            caption = images[i].species_name;
+          }
+          else if (images[i].genus_name != null) {
+            caption = images[i].genus_name;
+          }
+          else if (images[i].family_name != null) {
+            caption = images[i].family_name;
+          }
+          else {
+            caption = "unknown";
+          }
+
           var figcaption = jQuery('<figcaption/>', {
-            'html': images[i].species_name,
+            'html': caption,
           }).appendTo(figure);
           img.lazyload();
         }
@@ -101,13 +187,35 @@ $(document).ready(function() {
 
 {% extends "layout.html" %}
 {% block body %}
+
 <section id="filter">
-  <div id="status">
-    Status:
+  <div id="family">
+    Family:
     <p>
-      <select id="status-select">
-        <option>Unannotated</option>
-        <option>Annotated</option>
+      <select id="family-select">
+        <option value='None'>None</option>
+        <option value='All'>All</option>
+        {% for family in families %}
+          <option value={{ family.family_id }}>{{ family.family_name }}</option>
+        {% endfor %}
+      </select>
+    </p>
+  </div>
+  <div id="genus">
+    Genus:
+    <p>
+      <select id="genus-select" disabled="true">
+        <option value='None'>None</option>
+        <option value='All'>All</option>
+      </select>
+    </p>
+  </div>
+  <div id="species">
+    Species:
+    <p>
+      <select id="species-select" disabled="true">
+        <option value='None'>None</option>
+        <option value='All'>All</option>
       </select>
     </p>
   </div>
@@ -115,19 +223,22 @@ $(document).ready(function() {
     Source:
     <p>
       <select id="source-select" disabled="true">
-        <option>Algorithm</option>
-        <option>Human</option>
+        <option value='Humans & Algorithms'>Humans & Algorithms</option>
+        <option value='Algorithms'>Algorithms only</option>
+        <option value'Humans only'>Humans only</option>
+        {% for user in users %}
+          <option value={{ user.user_id }}>{{ user.user_username }}</option>
+        {% endfor %}
       </select>
     </p>
   </div>
-  <div id="species">
-    Species to include:
+  <div id="order">
+    Order by:
     <p>
-      <select id="species-select" disabled="true">
-        <option>All</option>
-        {% for sp in species %}
-          <option>{{ sp.species_name }}</option>
-        {% endfor %}
+      <select id="order-select">
+        <option value='Image Similarity'>Image Similarity</option>
+        <option value='Date Added'>Date Added</option>
+        <option value='Date Collected'>Date Collected</option>
       </select>
     </p>
   </div>
@@ -147,17 +258,33 @@ $(document).ready(function() {
   <img id="overlayImage" src="" alt=""/>
   <div id="overlay_image_filepath" class="overlay_info"></div>
   <div id="overlay_image_date_collected" class="overlay_info"></div>
+  <div id="overlay_image_family" class="overlay_info"></div>
+  <div id="overlay_image_genus" class="overlay_info"></div>
   <div id="overlay_image_species" class="overlay_info"></div>
-  <div id="overlay_image_confusable" class="overlay_info"></div>
   <div id="overlay_image_added" class="overlay_info"></div>
-  <div id="overlay_image_annotated" class="overlay_info"></div>
   <div id="overlay_image_dimensions" class="overlay_info"></div>
 </div>
 <div class='toast' style='display:none'></div>
 
-<ul class='custom-menu'>
-  {% for sp in species %}
-  <li id="{{ sp.species_id }}" data-action="{{ sp.species_name }}">{{ sp.species_name }}</li>
+<ul id="family-menu" class="drop">
+  <span>Family</span>
+  {% for family in families %}
+      <li id="{{ family.family_id }}" data-action="{{ family.family_name }}">{{ family.family_name }}
+        <ul id="genus-menu" class="drop">
+        <span>Genus</span>
+        {% for genus in family.genus_list %}
+          <li id="{{ genus.genus_id }}" data-action="{{ genus.genus_name }}">{{ genus.genus_name }}
+              <ul id="species-menu" class="drop">
+                <span>Species</span>
+                {% for sp in genus.species_list %}
+                <li id="{{ sp.species_id }}" data-action="{{ sp.species_name }}">{{ sp.species_name }}
+                </li>
+                {% endfor %}
+              </ul>
+          </li>
+        {% endfor %}
+        </ul>
+      </li>
   {% endfor %}
 </ul> 
 

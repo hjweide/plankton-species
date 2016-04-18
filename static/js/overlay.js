@@ -26,10 +26,22 @@ $(document).ready(function() {
                   // populate the overlay image's info
                   $('#overlay_image_filepath').html('Filepath: ' + result['image_filepath']);
                   $('#overlay_image_date_collected').html('Collected on: ' + result['image_date_collected']);
-                  $('#overlay_image_species').html('Species: ' + result['species_name']);
-                  $('#overlay_image_confusable').html('Confusable: ' + result['species_confusable']);
+                  $('#overlay_image_family').html(
+                    'Family: ' + result['family_name'] +
+                    ' (confusable is ' + result['family_confusable'] + 
+                    ' annotated by ' + result['username_family_annotated'] +
+                    ' on ' + result['image_date_family_annotated'] + ')');
+                  $('#overlay_image_genus').html(
+                    'Genus: ' + result['genus_name'] +
+                    ' (confusable is ' + result['genus_confusable'] + 
+                    ' annotated by ' + result['username_genus_annotated'] +
+                    ' on ' + result['image_date_genus_annotated'] + ')');
+                  $('#overlay_image_species').html(
+                    'Species: ' + result['species_name'] +
+                    ' (confusable is ' + result['species_confusable'] + 
+                    ' annotated by ' + result['username_species_annotated'] +
+                    ' on ' + result['image_date_species_annotated'] + ')');
                   $('#overlay_image_added').html('Added by: ' + result['username_added'] + ' on ' + result['image_date_added']);
-                  $('#overlay_image_annotated').html('Annotated by: ' + result['username_annotated'] + ' by ' + result['image_date_annotated']);
                   $('#overlay_image_dimensions').html('Height x Width: ' + result['image_height'] + ' x ' + result['image_width']);
 
                   // configure the html attributes of the overlay image

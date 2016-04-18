@@ -5,7 +5,8 @@ import warnings
 from flask import Flask, Response
 from flask import request, session, g, redirect, url_for, abort
 from flask import send_from_directory
-from flask import render_template, flash
+from flask import render_template
+from werkzeug import check_password_hash
 
 from PIL import Image
 import StringIO
@@ -45,48 +46,128 @@ def image(filename):
 # entry point when app is started
 @app.route('/', methods=['GET'])
 def home():
+    return render_template('home.html')
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        login_successful = False
+        if username and password:
+            cur = g.db.execute(
+                'select'
+                ' user_username, '
+                ' user_password '
+                'from user where user_username=?', (username,)
+            )
+            result = cur.fetchone()
+            if result is not None:
+                user_username, user_password = result
+                if check_password_hash(user_password, password):
+                    login_successful = True
+
+        if login_successful:
+            app.logger.info('login: successful login by user %s' % (
+                user_username))
+            session['logged_in'] = True
+            session['username'] = user_username
+            return redirect(url_for('overview'))
+        else:
+            app.logger.info('login: unsuccessful login by user %s' % (
+                user_username))
+            error = 'Invalid username or password'
+
+    return render_template('home.html', error=error)
+
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    user_username = session.pop('username', None)
+    app.logger.info('logout: logout by user %s' % (user_username))
+    return render_template('home.html')
+
+
+@app.route('/overview', methods=['GET'])
+def overview():
+    if not session.get('logged_in'):
+        return render_template(
+            'home.html', error='You must be logged in to do that')
+
     cur = g.db.execute(
-        'select '
-        '  species.species_name, species.species_confusable, '
+        'select'
+        '  image_family.family_name,'
+        '  image_genus.genus_name,'
+        '  image_species.species_name,'
         '  count(image.image_id) '
-        'from species '
-        'join image on '
-        '   species.species_id=image.image_species_id '
-        'group by species.species_id '
-        'order by count(image.image_id) desc'
+        'from image '
+        'left outer join family as image_family on'
+        '  image.image_family_id=image_family.family_id '
+        'left outer join genus as image_genus on '
+        '  image.image_genus_id=image_genus.genus_id '
+        'left outer join species as image_species on'
+        '  image.image_species_id=image_species.species_id '
+        'group by '
+        '  image_family.family_id,'
+        '  image_genus.genus_id,'
+        '  image_species.species_id'
     )
+
     result = cur.fetchall()
-    species_counts = []
-    for (species_name, species_confusable, count_image_id) in result:
-        species_counts.append({
+    image_counts = []
+    for family_name, genus_name, species_name, image_count in result:
+        image_counts.append({
+            'family_name': str(family_name),
+            'genus_name': str(genus_name),
             'species_name': str(species_name),
-            'species_confusable': species_confusable,
-            'count_image_id': count_image_id,
+            'image_count': image_count,
         })
+
+    cur = g.db.execute(
+        'select count(image_id) '
+        'from image '
+        'where image_family_id is not null'
+    )
+    family_annotated = cur.fetchone()[0]
+
+    cur = g.db.execute(
+        'select count(image_id) '
+        'from image '
+        'where image_genus_id is not null'
+    )
+    genus_annotated = cur.fetchone()[0]
 
     cur = g.db.execute(
         'select count(image_id) '
         'from image '
         'where image_species_id is not null'
     )
+    species_annotated = cur.fetchone()[0]
 
-    annotated = cur.fetchone()[0]
     cur = g.db.execute(
         'select count(image_id) '
         'from image'
     )
     total = cur.fetchone()[0]
 
-    app.logger.info('home: annotated = %d, total = %d, len(counts) = %d' % (
-        annotated, total, len(species_counts)))
-    return render_template('home.html',
-                           annotated=annotated,
+    app.logger.info(
+        'overview: total = %d' % (total) +
+        ', family = %d, genus = %d, species = %d' % (
+            family_annotated, genus_annotated, species_annotated))
+    return render_template('overview.html',
+                           family_annotated=family_annotated,
+                           genus_annotated=genus_annotated,
+                           species_annotated=species_annotated,
                            total=total,
-                           species_counts=species_counts)
+                           image_counts=image_counts)
 
 
-@app.route('/home/update', methods=['POST'])
-def home_update():
+@app.route('/overview/update', methods=['POST'])
+def overview_update():
     species_name_string = request.form['species_name']
     species_confusable_string = request.form['species_confusable']
     species_confusable = 1 if species_confusable_string == 'true' else 0
@@ -102,7 +183,7 @@ def home_update():
 
     g.db.commit()
 
-    app.logger.info('home: set species %s to confusable = %s, updated = %d' % (
+    app.logger.info('overview_update: set species %s to confusable = %s, updated = %d' % (
         species_name_string, species_confusable, cur.rowcount))
     return json.dumps({'status': 'OK'})
 
@@ -110,41 +191,100 @@ def home_update():
 # when user chooses a new species for a set of images
 @app.route('/update_labels', methods=['POST'])
 def post_labels():
+    if not session.get('logged_in'):
+        return json.dump({'status': 'ERROR', 'rows_updated': 0})
+
     image_id_string = request.form['image_id']
-    species_id_string = request.form['species_id']
     image_id_list = image_id_string.split(', ')
 
-    # TODO: need to get this from the interface
-    username_annotated_string = 'hendrik'
-    image_date_annotated = strftime('%Y-%m-%d %H:%M:%S')
+    # get the id and which field to set
+    species_id_string = request.form['species_id']
+    genus_id_string = request.form['genus_id']
+    family_id_string = request.form['family_id']
+    #type_string = request.form['type']
+
+    current_user = session['username']
+    cur = g.db.execute(
+        'select user_id from user where user_username=?',
+        (current_user,)
+    )
+    (current_user_id,) = cur.fetchone()
+
+    current_time = strftime('%Y-%m-%d %H:%M:%S')
+
+    # nulls from javascript arrive as empty strings...
+    if species_id_string == '':
+        image_species_id = None
+        image_date_species_annotated = None
+        image_user_id_species_annotated = None
+    else:
+        assert species_id_string.isdigit(), 'species_id_string must be an int'
+        image_species_id = int(species_id_string)
+        image_date_species_annotated = current_time
+        image_user_id_species_annotated = current_user_id
+
+    if genus_id_string == '':
+        image_genus_id = None
+        image_date_genus_annotated = None
+        image_user_id_genus_annotated = None
+    else:
+        assert genus_id_string.isdigit(), 'genus_id_string must be an int'
+        image_genus_id = int(genus_id_string)
+        image_date_genus_annotated = current_time
+        image_user_id_genus_annotated = current_user_id
+
+    if family_id_string == '':
+        image_family_id = None
+        image_date_family_annotated = None
+        image_user_id_family_annotated = None
+    else:
+        assert family_id_string.isdigit(), 'family_id_string must be an int'
+        image_family_id = int(family_id_string)
+        image_date_family_annotated = current_time
+        image_user_id_family_annotated = current_user_id
 
     values = []
     for image_id in image_id_list:
         values.append((
-            species_id_string,
-            image_date_annotated,
-            username_annotated_string,
+            image_family_id,
+            image_genus_id,
+            image_species_id,
+            image_date_family_annotated,
+            image_date_genus_annotated,
+            image_date_species_annotated,
+            image_user_id_family_annotated,
+            image_user_id_genus_annotated,
+            image_user_id_species_annotated,
             image_id,
         ))
 
     cur = g.db.executemany(
         'update image '
         'set '
-        '  image_species_id=?, '
-        '  image_date_annotated=?, '
-        '  image_user_id_annotated=('
-        '    select user_id from user where user_username=?) '
+        '  image_family_id=?,'
+        '  image_genus_id=?,'
+        '  image_species_id=?,'
+        '  image_date_family_annotated=?,'
+        '  image_date_genus_annotated=?,'
+        '  image_date_species_annotated=?,'
+        '  image_user_id_family_annotated=?,'
+        '  image_user_id_genus_annotated=?,'
+        '  image_user_id_species_annotated=? '
         'where '
         'image_id=?',
-        values
+        values,
     )
 
     g.db.commit()
 
     app.logger.info('post_labels: %d images to species_id %s' % (
         len(values), species_id_string))
-    info_list = ['  image_id %s set to species_id %s by %s on %s' % (
-        value[3], value[0], value[2], value[1]) for value in values]
+    # a null in javascript is passed here as an empty string
+    info_list = ['  image_id %s set to' % (value[9]) +
+                 ' family_id %s on %s by %s' % (value[0], value[3], value[6]) +
+                 ' genus_id %s on %s by %s' % (value[1], value[4], value[7]) +
+                 ' species_id %s on %s by %s' % (value[2], value[5], value[8])
+                 for value in values]
     app.logger.info('post_labels:\n%s' % ('\n'.join(info_list)))
     return json.dumps({'status': 'OK', 'rows_updated': cur.rowcount})
 
@@ -157,30 +297,56 @@ def post_overlay():
         'select'
         '  image.image_id, image.image_filepath, '
         '  image.image_date_added, image.image_date_collected, '
-        '  image.image_date_annotated,'
+        '  image.image_date_family_annotated,'
+        '  image.image_date_genus_annotated,'
+        '  image.image_date_species_annotated,'
         '  image.image_height, image.image_width, '
+        '  image_family.family_name,'
+        '  image_family.family_confusable,'
+        '  image_genus.genus_name,'
+        '  image_genus.genus_confusable,'
         '  image_species.species_name,'
         '  image_species.species_confusable,'
         '  image_user_added.user_username, '
-        '  image_user_annotated.user_username '
+        '  image_user_family_annotated.user_username,'
+        '  image_user_genus_annotated.user_username,'
+        '  image_user_species_annotated.user_username '
         'from image '
         'join user as image_user_added on '
         '  image.image_user_id_added=image_user_added.user_id '
+        'left outer join family as image_family on '
+        '  image.image_family_id=image_family.family_id '
+        'left outer join genus as image_genus on '
+        '  image.image_genus_id=image_genus.genus_id '
         'left outer join species as image_species on '
         '  image.image_species_id=image_species.species_id '
-        'left outer join user as image_user_annotated on '
-        '  image.image_user_id_annotated=image_user_annotated.user_id '
+        'left outer join user as image_user_family_annotated on '
+        '  image.image_user_id_family_annotated=image_user_family_annotated.user_id '
+        'left outer join user as image_user_genus_annotated on '
+        '  image.image_user_id_genus_annotated=image_user_genus_annotated.user_id '
+        'left outer join user as image_user_species_annotated on '
+        '  image.image_user_id_species_annotated=image_user_species_annotated.user_id '
         'where '
         '  image.image_id=?',
         (image_id_string,)
     )
 
     (image_id, image_filepath,
-        image_date_added, image_date_collected, image_date_annotated,
+        image_date_added, image_date_collected,
+        image_date_family_annotated,
+        image_date_genus_annotated,
+        image_date_species_annotated,
         image_height, image_width,
+        family_name, family_confusable,
+        genus_name, genus_confusable,
         species_name, species_confusable,
-        user_username_added, user_username_annotated) = cur.fetchone()
+        user_username_added,
+        user_username_family_annotated,
+        user_username_genus_annotated,
+        user_username_species_annotated) = cur.fetchone()
 
+    family_confusable_typed = bool(family_confusable) if isinstance(family_confusable, int) else family_confusable
+    genus_confusable_typed = bool(genus_confusable) if isinstance(genus_confusable, int) else genus_confusable
     species_confusable_typed = bool(species_confusable) if isinstance(species_confusable, int) else species_confusable
     app.logger.info('post_overlay: image_id = %s' % (image_id_string))
     return json.dumps({
@@ -189,89 +355,275 @@ def post_overlay():
         'image_filepath': image_filepath,
         'image_date_added': image_date_added,
         'image_date_collected': image_date_collected,
-        'image_date_annotated': str(image_date_annotated),
+        'image_date_family_annotated': str(image_date_family_annotated),
+        'image_date_genus_annotated': str(image_date_genus_annotated),
+        'image_date_species_annotated': str(image_date_species_annotated),
         'image_width': image_width,
         'image_height': image_height,
+        'family_name': str(family_name),
+        'family_confusable': str(family_confusable_typed),
+        'genus_name': str(genus_name),
+        'genus_confusable': str(genus_confusable_typed),
         'species_name': str(species_name),
         'species_confusable': str(species_confusable_typed),
         'username_added': user_username_added,
-        'username_annotated': str(user_username_annotated),
+        'username_family_annotated': str(user_username_family_annotated),
+        'username_genus_annotated': str(user_username_genus_annotated),
+        'username_species_annotated': str(user_username_species_annotated),
     })
 
 
 # when user chooses to work on labeling images manually
 @app.route('/label')
 def label_images():
+    if not session.get('logged_in'):
+        return render_template(
+            'home.html', error='You must be logged in to do that')
     cur = g.db.execute(
-        #'select species_id, species_name from species order by species_id'
-        'select species_id, species_name from species order by species_name'
+        'select'
+        '  family.family_id, family.family_name, '
+        '  family_genus.genus_id, family_genus.genus_name, '
+        '  genus_species.species_id, genus_species.species_name '
+        'from family '
+        'left outer join genus as family_genus on '
+        '  family.family_id=family_genus.genus_family_id '
+        'left outer join species as genus_species on '
+        '  family_genus.genus_id=genus_species.species_genus_id '
+        'order by family_name'
     )
+
     result = cur.fetchall()
-    species = []
-    for (species_id, species_name,) in result:
-        species.append({
-            'species_id': species_id,
-            'species_name': species_name,
+    taxonomy_dict = {}
+    for result_tuple in result:
+        (family_id, family_name,
+            genus_id, genus_name,
+            species_id, species_name) = result_tuple
+        species_name = None if species_name is None else str(species_name)
+        genus_name = None if genus_name is None else str(genus_name)
+        family_name = None if family_name is None else str(family_name)
+        if family_id not in taxonomy_dict:
+            taxonomy_dict[family_id] = {
+                'family_id': family_id,
+                'family_name': family_name,
+                'genus_list': {genus_id: {
+                    'genus_id': genus_id,
+                    'genus_name': genus_name,
+                    'species_list': [{
+                        'species_id': species_id,
+                        'species_name': species_name,
+                    }],
+                }},
+            }
+        else:
+            if genus_id not in taxonomy_dict[family_id]['genus_list']:
+                taxonomy_dict[family_id]['genus_list'][genus_id] = {
+                    'genus_id': genus_id,
+                    'genus_name': genus_name,
+                    'species_list': [{
+                        'species_id': species_id,
+                        'species_name': species_name,
+                    }],
+                }
+            else:
+                taxonomy_dict[family_id]['genus_list'][genus_id]['species_list'].append({
+                    'species_id': species_id,
+                    'species_name': species_name,
+                })
+
+    family_list = []
+    for family_id in taxonomy_dict:
+        genus_list = taxonomy_dict[family_id]['genus_list'].values()
+        taxonomy_dict[family_id]['genus_list'] = genus_list
+        family_list.append(taxonomy_dict[family_id])
+
+    family_list.append({'family_id': None, 'family_name': 'None'})
+
+    cur = g.db.execute('select user_id, user_username from user')
+    result = cur.fetchall()
+    user_list = []
+    for user_id, user_name in result:
+        user_list.append({
+            'user_id': user_id,
+            'user_username': user_name
         })
 
-    app.logger.info('label_images: %d species' % (len(species)))
+    #app.logger.info('label_images: %d species' % (len(species)))
     return render_template('label_images.html',
-                           species=species)
+                           families=family_list,
+                           users=user_list)
 
 
 @app.route('/label', methods=['POST'])
 def begin_label():
+    if not session.get('logged_in'):
+        return render_template(
+            'home.html', error='You must be logged in to do that')
     limit_string = str(request.form['limit'])
-    status_string = str(request.form['status'])
     source_string = str(request.form['source'])
+    family_string = str(request.form['family'])
+    genus_string = str(request.form['genus'])
     species_string = str(request.form['species'])
+    order_string = str(request.form['order'])
 
-    source = ['Algorithm', 'Human'].index(source_string)
+    #source = ['Algorithm', 'Human'].index(source_string)
 
-    app.logger.info('begin_label:'
-                    ' limit = %s, status = %s, source = %s, species = %s' % (
-                        limit_string, status_string, source_string,
-                        species_string))
+    app.logger.info(
+        'begin_label:'
+        ' limit = %s, source = %s, ' % (
+            limit_string, source_string) +
+        'family = %s, genus = %s, species = %s' % (
+            family_string, genus_string, species_string)
+    )
 
-    if status_string == 'Unannotated':
-        where_clause = ('where'
-                        '  image.image_species_id is null ')
-        values = (limit_string,)
-    elif status_string == 'Annotated':
-        if species_string == 'All':
-            where_clause = ('where'
-                            '  image.image_species_id is not null and '
-                            '  image_user_annotated.user_human=? ')
-            values = (source, limit_string)
+    most_specific_rank = None  # need to know which table to query for the user
+    values = []
+    if family_string == genus_string == species_string == 'All':
+        where_clause = (
+            'where'
+            ' image_family.family_id is not null and'
+            ' image_genus.genus_id is not null and '
+            ' image_species.species_id is not null')
+        most_specific_rank = 'species'
+    elif family_string == genus_string == 'All':
+        assert species_string == 'None'
+        where_clause = (
+            'where'
+            ' image_family.family_id is not null and'
+            ' image_genus.genus_id is not null and '
+            ' image_species.species_id is null')
+        most_specific_rank = 'genus'
+    elif family_string == 'All':
+        assert genus_string == species_string == 'None'
+        where_clause = (
+            'where'
+            ' image_family.family_id is not null and'
+            ' image_genus.genus_id is null and '
+            ' image_species.species_id is null')
+        most_specific_rank = 'family'
+    elif family_string == 'None':
+        assert genus_string == species_string == 'None'
+        # in practice if family_id is null the others should be too
+        where_clause = (
+            'where'
+            ' image_family.family_id is null and'
+            ' image_genus.genus_id is null and'
+            ' image_species.species_id is null')
+    else:
+        assert family_string.isdigit(), (
+            'family_id must be an int to query')
+        family_id = family_string
+        values += [family_id]
+        most_specific_rank = 'family'
+        if genus_string == 'All':
+            where_clause = (
+                'where'
+                ' image_family.family_id=? and'
+                ' image_genus.genus_id is not null')
+            most_specific_rank = 'genus'
+        elif genus_string == 'None':
+            assert species_string == 'None'
+            where_clause = (
+                'where'
+                ' image_family.family_id=? and'
+                ' image_genus.genus_id is null')
         else:
-            where_clause = ('where'
-                            '  image.image_species_id=('
-                            '    select '
-                            '      species_id '
-                            '    from species '
-                            '    where '
-                            '      species_name=?) and'
-                            '  image_user_annotated.user_human=? ')
-            values = (species_string, source, limit_string)
+            assert genus_string.isdigit(), (
+                'genus_id must be an int to query')
+            genus_id = genus_string
+            values += [genus_id]
+            most_specific_rank = 'genus'
+            if species_string == 'All':
+                where_clause = (
+                    'where'
+                    ' image_family.family_id=? and'
+                    ' image_genus.genus_id=? and '
+                    ' image_species.species_id is not null')
+                most_specific_rank = 'species'
+            elif species_string == 'None':
+                where_clause = (
+                    'where'
+                    ' image_family.family_id=? and'
+                    ' image_genus.genus_id=? and '
+                    ' image_species.species_id is null')
+            else:
+                assert species_string.isdigit(), (
+                    'species_id must be an int to query')
+                species_id = species_string
+                values += [species_id]
+                where_clause = (
+                    'where'
+                    ' image_family.family_id=? and'
+                    ' image_genus.genus_id=? and'
+                    ' image_species.species_id=?')
+                most_specific_rank = 'species'
+
+    # get images where the most specific level of classification
+    # was made by this user
+    if source_string == 'Humans & Algorithms':
+        pass
+    elif source_string == 'Algorithms':
+        assert most_specific_rank is not None
+        where_clause += (
+            ' and image_user_%s_annotated.user_human=0' % most_specific_rank)
+    elif source_string == 'Humans only':
+        assert most_specific_rank is not None
+        where_clause += (
+            ' and image_user_%s_annotated.user_human=1' % most_specific_rank)
+    else:
+        user_id = source_string
+        assert most_specific_rank is not None
+        where_clause += (
+            ' and image_user_%s_annotated.user_id=?' % most_specific_rank)
+        values += [user_id]
+
+    if order_string == 'Image Similarity':
+        order_by = ''
+    elif order_string == 'Date Added':
+        order_by = 'order by image.image_date_added'
+    elif order_string == 'Date Collected':
+        order_by = 'order by image.image_date_collected'
+    else:
+        assert False, '%s is not a valid ordering' % (order_string)
+
+    # the limit is always last
+    values += [limit_string]
 
     cur = g.db.execute(
         'select'
         '  image.image_id, image.image_filepath, '
         '  image.image_date_added, image.image_date_collected, '
-        '  image.image_date_annotated,'
+        '  image.image_date_family_annotated,'
+        '  image.image_date_genus_annotated,'
+        '  image.image_date_species_annotated,'
         '  image.image_height, image.image_width, '
+        '  image_family.family_name,'
+        '  image_family.family_confusable,'
+        '  image_genus.genus_name,'
+        '  image_genus.genus_confusable,'
         '  image_species.species_name,'
         '  image_species.species_confusable,'
-        '  image_user_added.user_username, '
-        '  image_user_annotated.user_username '
+        '  image_user_added.user_username,'
+        '  image_user_family_annotated.user_username '
         'from image '
         'join user as image_user_added on '
         '  image.image_user_id_added=image_user_added.user_id '
+        'left outer join family as image_family on '
+        '  image.image_family_id=image_family.family_id '
+        'left outer join genus as image_genus on '
+        '  image.image_genus_id=image_genus.genus_id '
         'left outer join species as image_species on '
         '  image.image_species_id=image_species.species_id '
-        'left outer join user as image_user_annotated on '
-        '  image.image_user_id_annotated=image_user_annotated.user_id '
-        + where_clause +
+        'left outer join user as image_user_family_annotated on '
+        '  image.image_user_id_family_annotated'
+        '    =image_user_family_annotated.user_id '
+        'left outer join user as image_user_genus_annotated on '
+        '  image.image_user_id_genus_annotated'
+        '    =image_user_genus_annotated.user_id '
+        'left outer join user as image_user_species_annotated on '
+        '  image.image_user_id_species_annotated'
+        '    =image_user_species_annotated.user_id '
+        + where_clause + ' '
+        + order_by + ' '
         'limit ?', values
     )
 
@@ -281,23 +633,39 @@ def begin_label():
     width, height = 95, 95
     for result_tuple in result:
         (image_id, image_filepath,
-            image_date_added, image_date_collected, image_date_annotated,
+            image_date_added, image_date_collected,
+            image_date_family_annotated,
+            image_date_genus_annotated,
+            image_date_species_annotated,
             image_height, image_width,
+            family_name, family_confusable,
+            genus_name, genus_confusable,
             species_name, species_confusable,
             user_added, user_annotated) = result_tuple
 
         # convert to string representation of boolean or leave as N/A
+        family_confusable_typed = bool(family_confusable) if isinstance(family_confusable, int) else family_confusable
+        genus_confusable_typed = bool(genus_confusable) if isinstance(genus_confusable, int) else genus_confusable
         species_confusable_typed = bool(species_confusable) if isinstance(species_confusable, int) else species_confusable
 
+        species_name = None if species_name is None else str(species_name)
+        genus_name = None if genus_name is None else str(genus_name)
+        family_name = None if family_name is None else str(family_name)
         images.append({
             'image_id': image_id,
             'image_filepath': image_filepath,
             'image_date_added': image_date_added,
             'image_date_collected': image_date_collected,
-            'image_date_annotated': str(image_date_annotated),
+            'image_date_family_annotated': str(image_date_family_annotated),
+            'image_date_genus_annotated': str(image_date_genus_annotated),
+            'image_date_species_annotated': str(image_date_species_annotated),
             'image_height': image_height,
             'image_width': image_width,
-            'species_name': str(species_name),
+            'family_name': family_name,
+            'family_confusable': family_confusable_typed,
+            'genus_name': genus_name,
+            'genus_confusable': genus_confusable_typed,
+            'species_name': species_name,
             'species_confusable': species_confusable_typed,
             'username_added': user_added,
             'username_annotated': str(user_annotated),
@@ -306,28 +674,20 @@ def begin_label():
             'src': image_filepath,
         })
 
-    cur = g.db.execute(
-        'select species_id, species_name '
-        'from species '
-        'order by species_name;'
-    )
-    result = cur.fetchall()
-
-    labels = []
-    for (species_id, species_name) in result:
-        labels.append({
-            'label_id': species_id,
-            'label_name': str(species_name),
-        })
-
-    app.logger.info('begin_label: return %d images and %d species' % (
-        len(images), len(labels)))
+    app.logger.info('begin_label: return %d images' % (len(images)))
     return json.dumps(images)
 
 
 # when user chooses to review species
 @app.route('/review')
 def review_images():
+    if not session.get('logged_in'):
+        return render_template(
+            'home.html', error='You must be logged in to do that')
+    # delete else-clause when review interface is available again
+    else:
+        return render_template('home.html', error=None)
+
     cur = g.db.execute(
         'select species_name from species order by species_id'
     )
@@ -617,8 +977,7 @@ def post_revisions():
     image_id_string = request.form['image_id']
     species_name_string = request.form['species_name']
 
-    # TODO: need to get this from the interface
-    username_annotated_string = 'hendrik'
+    username_annotated_string = session['username']
     image_date_annotated = strftime('%Y-%m-%d %H:%M:%S')
 
     values = (
@@ -658,8 +1017,8 @@ def post_revisions():
 def before_first_request():
     try:
         # TODO: cause the import to fail to accelerate non-learning development
-        #from learning_ import Model
-        from learning import Model
+        from learning_ import Model
+        #from learning import Model
         conn = connect_db()
         cur = conn.cursor()
         cur.execute('select species_name from species')
