@@ -21,6 +21,7 @@ $(document).ready(function() {
     var genus_select = $('#genus-select');
     var species_select = $('#species-select');
     var source_select = $('#source-select');
+    var order_select = $('#order-select');
 
     species_select.find('option:gt(1)').remove();
     genus_select.find('option:gt(1)').remove();
@@ -32,6 +33,7 @@ $(document).ready(function() {
       species_select.prop('disabled', false);
 
       source_select.prop('disabled', false);
+      order_select.prop('disabled', true);
     }
     // select all images that have no family id
     else if (family_state == 'None') {
@@ -41,6 +43,7 @@ $(document).ready(function() {
       species_select.prop('disabled', true);
 
       source_select.prop('disabled', true);
+      order_select.prop('disabled', false);
     }
     // select all images with a specific family id
     else {
