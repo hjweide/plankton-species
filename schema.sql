@@ -52,6 +52,9 @@ create table image (
   image_genus_id integer,
   image_species_id integer,
 
+  image_cluster_id integer,
+  image_cluster_dist real,
+
   foreign key(image_family_id) references family(family_id),
   foreign key(image_genus_id) references genus(genus_id),
   foreign key(image_species_id) references species(species_id),
@@ -80,5 +83,11 @@ create table image (
     (image_family_id is not null and image_genus_id is null and image_species_id is null) or 
     (image_family_id is not null and image_genus_id is not null and image_species_id is null) or 
     (image_family_id is not null and image_genus_id is not null and image_species_id is not null)
+  ),
+
+  -- an image assigned to a cluster must also have a distance to that cluster
+  check(
+    (image_cluster_id is null and image_cluster_dist is null) or
+    (image_cluster_id is not null and image_cluster_dist is not null)
   )
 );

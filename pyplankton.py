@@ -577,7 +577,13 @@ def begin_label():
         values += [user_id]
 
     if order_string == 'Image Similarity':
-        order_by = ''
+        # image similarity is only implemented for unannotated images
+        if family_string == 'None':
+            where_clause += (' and image.image_cluster_id=?')
+            order_by = 'order by image.image_cluster_dist asc'
+            values += [np.random.randint(0, 60)]  # TODO: fix max. value
+        else:
+            order_by = ''
     elif order_string == 'Date Added':
         order_by = 'order by image.image_date_added'
     elif order_string == 'Date Collected':
