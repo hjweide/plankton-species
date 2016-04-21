@@ -18,6 +18,9 @@ from os.path import join, dirname, isdir, isfile
 app = Flask(__name__)
 app.config.from_object(__name__)
 
+MAINTENANCE = True
+MAINTENANCE_INFO = 'Adding new species!'
+
 
 @app.route('/<path:filename>')
 def image(filename):
@@ -46,11 +49,15 @@ def image(filename):
 # entry point when app is started
 @app.route('/', methods=['GET'])
 def home():
+    if MAINTENANCE:
+        return render_template('maintenance.html', error=MAINTENANCE_INFO)
     return render_template('home.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if MAINTENANCE:
+        return render_template('maintenance.html', error=MAINTENANCE_INFO)
     error = None
     if request.method == 'POST':
         username = request.form['username']
@@ -76,9 +83,10 @@ def login():
             session['logged_in'] = True
             session['username'] = user_username
             return redirect(url_for('overview'))
+        # need to use the provided username here, not the one from the database
         else:
             app.logger.info('login: unsuccessful login by user %s' % (
-                user_username))
+                username))
             error = 'Invalid username or password'
 
     return render_template('home.html', error=error)
@@ -86,6 +94,8 @@ def login():
 
 @app.route('/logout')
 def logout():
+    if MAINTENANCE:
+        return render_template('maintenance.html', error=MAINTENANCE_INFO)
     session.pop('logged_in', None)
     user_username = session.pop('username', None)
     app.logger.info('logout: logout by user %s' % (user_username))
@@ -94,6 +104,8 @@ def logout():
 
 @app.route('/overview', methods=['GET'])
 def overview():
+    if MAINTENANCE:
+        return render_template('maintenance.html', error=MAINTENANCE_INFO)
     if not session.get('logged_in'):
         return render_template(
             'home.html', error='You must be logged in to do that')
@@ -687,6 +699,8 @@ def begin_label():
 # when user chooses to review species
 @app.route('/review')
 def review_images():
+    if MAINTENANCE:
+        return render_template('maintenance.html', error=MAINTENANCE_INFO)
     if not session.get('logged_in'):
         return render_template(
             'home.html', error='You must be logged in to do that')
