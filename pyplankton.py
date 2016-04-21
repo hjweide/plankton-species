@@ -388,6 +388,8 @@ def post_overlay():
 # when user chooses to work on labeling images manually
 @app.route('/label')
 def label_images():
+    if MAINTENANCE:
+        return render_template('maintenance.html', error=MAINTENANCE_INFO)
     if not session.get('logged_in'):
         return render_template(
             'home.html', error='You must be logged in to do that')
