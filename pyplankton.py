@@ -18,8 +18,8 @@ from os.path import join, dirname, isdir, isfile
 app = Flask(__name__)
 app.config.from_object(__name__)
 
-MAINTENANCE = True
-MAINTENANCE_INFO = 'Adding new species!'
+MAINTENANCE = False
+MAINTENANCE_INFO = ''
 
 
 @app.route('/<path:filename>')
@@ -447,10 +447,14 @@ def label_images():
     family_list = []
     for family_id in taxonomy_dict:
         genus_list = taxonomy_dict[family_id]['genus_list'].values()
-        taxonomy_dict[family_id]['genus_list'] = genus_list
+        # sort the genera alphabetically by name
+        genus_list_alpha = sorted(genus_list, key=lambda k: k['genus_name'])
+        taxonomy_dict[family_id]['genus_list'] = genus_list_alpha
         family_list.append(taxonomy_dict[family_id])
 
-    family_list.append({'family_id': None, 'family_name': 'None'})
+    # sort the families alphabetically by name
+    family_list_alpha = sorted(family_list, key=lambda k: k['family_name'])
+    family_list_alpha.append({'family_id': None, 'family_name': 'None'})
 
     cur = g.db.execute('select user_id, user_username from user')
     result = cur.fetchall()
@@ -463,7 +467,7 @@ def label_images():
 
     #app.logger.info('label_images: %d species' % (len(species)))
     return render_template('label_images.html',
-                           families=family_list,
+                           families=family_list_alpha,
                            users=user_list)
 
 
