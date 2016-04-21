@@ -50,6 +50,8 @@ $(document).ready(function() {
       genus_select.prop('disabled', false);
       species_select.prop('disabled', true);
       source_select.prop('disabled', false);
+      order_select.prop('disabled', true);
+
       // remove all but the "All" option
       var families = {{ families|safe }};
       // find the genus list of the selected family
