@@ -393,7 +393,7 @@ class RankClassifier:
             print('caught ctrl-c... stopped training.')
         self._print_training_summary()
         if weightsfile is None:
-            filename = '%s' % (strftime('%Y-%m-%d_%H:%M:%S'))
+            filename = join('models', '%s' % (strftime('%Y-%m-%d_%H:%M:%S')))
         self.save(filename)
 
     def _print_epoch_info(self):
