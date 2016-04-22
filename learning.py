@@ -66,7 +66,7 @@ class RankClassifier:
         self.layers = {layer.name: layer for layer in model_layers}
         self.best_weights = get_all_param_values(self.layers['out'])
 
-    def _initialize_training(self, lr, mntm):
+    def _initialize_training_and_validation(self, lr, mntm):
         if self.verbose:
             print('initializing training with:')
             print(' lr = %.2e, mntm=%.2e' % (lr, mntm))
@@ -100,8 +100,6 @@ class RankClassifier:
 
         if self.verbose:
             print('successfully compiled theano function for training')
-        self.train_func = train_func
-
         # compile the theano function for one validation batch
         if self.verbose:
             print('compiling theano function for validation')
@@ -126,7 +124,8 @@ class RankClassifier:
 
         if self.verbose:
             print('successfully compiled theano function for validation')
-        self.valid_func = valid_func
+
+        return train_func, valid_func
 
     def _initialize_inference(self):
         if self.verbose:
@@ -144,7 +143,7 @@ class RankClassifier:
 
         if self.verbose:
             print('successfully compiled theano function for inference')
-        self.infer_func = infer_func
+        return infer_func
 
     def load(self, filename):
         if self.verbose:
@@ -184,7 +183,9 @@ class RankClassifier:
               batch_size=128, lr=0.01, mntm=0.9, max_epochs=10,
               weightsfile=None, cachefile=None):
 
-        self._initialize_training(lr, mntm)
+        if not hasattr(self, 'infer_func'):
+            self.train_func, self.valid_func =\
+                self._initialize_training_and_validation(lr, mntm)
 
         if cachefile is not None and isfile(cachefile):
             if self.verbose:
@@ -393,8 +394,9 @@ class RankClassifier:
             print('caught ctrl-c... stopped training.')
         self._print_training_summary()
         if weightsfile is None:
-            filename = join('models', '%s' % (strftime('%Y-%m-%d_%H:%M:%S')))
-        self.save(filename)
+            weightsfile = join(
+                'models', '%s' % (strftime('%Y-%m-%d_%H:%M:%S')))
+        self.save(weightsfile)
 
     def _print_epoch_info(self):
         current_epoch = self.history['num_epochs']
@@ -464,3 +466,50 @@ class RankClassifier:
 
         train_val_log = join('logs', '%s.png' % self.history['start_time'] )
         plt.savefig(train_val_log, bbox_inches='tight')
+
+    def predict(self, X, batch_size=128):
+        assert X.shape[1:] == self.input_shape[1:], (
+            'X.shape[1:] = %r does not match expected self.input_shape[1:]' % (
+                X.shape, self.input_shape[1:]))
+        assert hasattr(self, 'train_mean') and hasattr(self, 'train_std'), (
+            'this model does not have a normalizing mean and std deviation')
+        assert hasattr(self, 'layers'), (
+            'the model needs to be assembled before predicting')
+
+        if not X.dtype == np.float32:
+            print('casting input data from %s to np.float32' % (
+                X.dtype))
+            X = X.astype(np.float32)
+
+        if not hasattr(self, 'infer_func'):
+            self.infer_func = self._initialize_inference()
+
+        X -= self.train_mean
+        X /= self.train_std
+
+        num_batches_test = (
+            X.shape[0] + batch_size - 1) / batch_size
+
+        y_hat_batch_list = []
+        for i in xrange(num_batches_test):
+            test_idx = slice(
+                i * batch_size, (i + 1) * batch_size)
+            X_batch = X[test_idx]
+
+            y_hat_batch = self.infer_func(X_batch)
+            y_hat_batch_list.append(y_hat_batch)
+
+        y_hat = np.vstack(y_hat_batch_list)
+
+        return y_hat
+
+    def predict_from_filenames(self, filenames, batch_size=128):
+        X = np.empty(
+            ((len(filenames),) + self.input_shape[1:]),
+            dtype=np.float32)
+
+        for i, fname in enumerate(filenames):
+            img = daug.load_image(fname, resize_to=self.input_shape[2:4])
+            X[i] = img.transpose(2, 0, 1)
+
+        return self.predict(X, batch_size=batch_size)
