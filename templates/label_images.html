@@ -164,20 +164,6 @@ $(document).ready(function() {
     });
   });
 });
-//$(document).ready(function () {
-// var selectable = document.getElementById('selectable');
-// var images = {{ images|safe }};
-// for (i = 0; i < images.length; i++) {
-//   var image = JSON.parse(images[i]);
-//   var elem = document.createElement('img');
-//   //elem.setAttribute("id", "img");
-//   elem.setAttribute("class", "lazy");
-//   elem.setAttribute("data-original", image['src']);
-//   elem.setAttribute("width", image['width']);
-//   elem.setAttribute("height", image['height']);
-//   selectable.appendChild(elem);
-// }
-//});
 $(document).ready(function() {
     $('img.lazy').lazyload();
 });
@@ -293,16 +279,8 @@ $(document).ready(function() {
   {% endfor %}
 </ul> 
 
-<ul id="selectable">
-  <!--
-  {% for image in images %}
-  <figure class="selectable-figure">
-    <img id="{{ image.image_id }}" class="lazy" data-original="{{ image.src }}" width="{{ image.width }}" height="{{ image.height }}" />
-    <figcaption>{{ image.species }}</figcaption>
-  </figure>
-  {% endfor %}
-  -->
-</ul>
+<!-- will by dynamically populated -->
+<ul id="selectable"></ul>
 
 {% endblock %}
 </html>
