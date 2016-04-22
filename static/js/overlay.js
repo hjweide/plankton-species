@@ -85,6 +85,9 @@ $(document).on('keydown', function(e) {
     // find the currently selected image and its previousSibling
     var current_image = $('#selectable.ui-selectable').children('.ui-selected');
     var previous_image = current_image.prev();
+    // prevent moving left of the first image
+    if (previous_image.length == 0)
+      return false;
 
     // need to update the jquery selectable
     current_image.removeClass('ui-selected');
@@ -105,6 +108,9 @@ $(document).on('keydown', function(e) {
     // find the currently selected image and its nextSibling
     var current_image = $('#selectable.ui-selectable').children('.ui-selected');
     var next_image = current_image.next();
+    // prevent moving right of the last image
+    if (next_image.length == 0)
+      return false;
 
     // need to update the jquery selectable
     current_image.removeClass('ui-selected');
