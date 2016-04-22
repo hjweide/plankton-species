@@ -204,7 +204,7 @@ def overview_update():
 @app.route('/update_labels', methods=['POST'])
 def post_labels():
     if not session.get('logged_in'):
-        return json.dump({'status': 'ERROR', 'rows_updated': 0})
+        return json.dumps({'status': 'ERROR', 'rows_updated': 0})
 
     image_id_string = request.form['image_id']
     image_id_list = image_id_string.split(', ')
