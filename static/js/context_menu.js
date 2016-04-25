@@ -170,7 +170,7 @@ function update_labels(message, selection) {
       else if (family_name != null)
         name = family_name;
       else
-        name = "None";
+        name = "unknown";
 
       for (i = 0; i < children.length; i++) {
         var child = children[i].children[1];
