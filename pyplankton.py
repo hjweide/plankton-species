@@ -213,7 +213,6 @@ def post_labels():
     species_id_string = request.form['species_id']
     genus_id_string = request.form['genus_id']
     family_id_string = request.form['family_id']
-    #type_string = request.form['type']
 
     current_user = session['username']
     cur = g.db.execute(
