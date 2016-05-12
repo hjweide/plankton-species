@@ -13,6 +13,11 @@ $(document).on('click', '#repeat-button', function() {
   repeat_last();
 });
 
+$(document).on('click', '#junk-button', function() {
+  //console.log('junk button clicked');
+  junk_images();
+});
+
 // Trigger action when the contexmenu is about to be shown
 $(document).bind("contextmenu", function (event) {
     // Avoid the real one
@@ -40,6 +45,33 @@ $(document).ready(function() {
     $(this).children('ul').hide();
   });
 });
+
+function junk_images() {
+  var children = $('#selectable').children('.ui-selected');
+
+  var children_array = jQuery.makeArray(children);
+  selected_ids = [];
+  for (i = 0; i < children_array.length; i++) {
+    selected_ids.push(children_array[i].children[0].id);
+  }
+  var children_string = selected_ids.join(', ');
+  $.ajax({
+    url: '/junk_images',
+    data: jQuery.param({
+      'image_id': children_string, 
+    }),
+    type: 'POST',
+    success: function(response) {
+      //console.log("success " + response);
+      var selectable = $('#selectable');
+      selectable.children().remove('.ui-selected');
+      console.log('removing junked images');
+    },
+    error: function(error) {
+      //console.log("error " + error);
+    }
+  });
+}
 
 function repeat_last() {
   var repeat_family = $('#repeat-family');

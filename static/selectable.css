@@ -77,3 +77,8 @@ div#repeat-family,#repeat-genus,#repeat-species {
 #select {
   display: none,
 }
+button#junk-button {
+  display: inline-block;
+  padding-right: 10px;
+  float: right;
+}

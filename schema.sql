@@ -55,6 +55,8 @@ create table image (
   image_cluster_id integer,
   image_cluster_dist real,
 
+  image_junk boolean not null check (image_junk in (0, 1)),
+
   foreign key(image_family_id) references family(family_id),
   foreign key(image_genus_id) references genus(genus_id),
   foreign key(image_species_id) references species(species_id),

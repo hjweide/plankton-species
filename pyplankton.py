@@ -24,6 +24,7 @@ MAINTENANCE_INFO = ''
 
 @app.route('/<path:filename>')
 def image(filename):
+    print filename
     # when doing the overlay we want the full resolution image
     thumbnail = True
     try:
@@ -166,6 +167,12 @@ def overview():
     )
     total = cur.fetchone()[0]
 
+    cur = g.db.execute(
+        'select count(image_id) from image where image_junk=1'
+    )
+
+    total_junk = cur.fetchone()[0]
+
     app.logger.info(
         'overview: total = %d' % (total) +
         ', family = %d, genus = %d, species = %d' % (
@@ -175,6 +182,7 @@ def overview():
                            genus_annotated=genus_annotated,
                            species_annotated=species_annotated,
                            total=total,
+                           total_junk=total_junk,
                            image_counts=image_counts)
 
 
@@ -197,6 +205,33 @@ def overview_update():
 
     app.logger.info('overview_update: set species %s to confusable = %s, updated = %d' % (
         species_name_string, species_confusable, cur.rowcount))
+    return json.dumps({'status': 'OK'})
+
+
+@app.route('/junk_images', methods=['POST'])
+def junk_images():
+    image_id_string = request.form['image_id']
+    image_id_list = image_id_string.split(', ')
+
+    values = []
+    for image_id in image_id_list:
+        values.append((
+            1,
+            image_id,
+        ))
+
+    cur = g.db.executemany(
+        'update image '
+        'set '
+        '  image_junk=? '
+        'where '
+        'image_id=?',
+        values,
+    )
+
+    g.db.commit()
+    app.logger.info('junk_images: %d images marked as junk' % (cur.rowcount))
+
     return json.dumps({'status': 'OK'})
 
 
@@ -645,7 +680,7 @@ def begin_label():
         'left outer join user as image_user_species_annotated on '
         '  image.image_user_id_species_annotated'
         '    =image_user_species_annotated.user_id '
-        + where_clause + ' '
+        + where_clause + ' and image.image_junk=0 '
         + order_by + ' '
         'limit ?', values
     )
@@ -709,9 +744,6 @@ def review_images():
     if not session.get('logged_in'):
         return render_template(
             'home.html', error='You must be logged in to do that')
-    # delete else-clause when review interface is available again
-    else:
-        return render_template('home.html', error=None)
 
     cur = g.db.execute(
         'select species_name from species order by species_id'
